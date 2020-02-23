@@ -41,6 +41,7 @@ Tick:
         sta posx
 endupdate_posx:
 
+;;;; bg
 	PPU_SETADDR $2085
 	lda #24
         jsr ClearLine
@@ -55,18 +56,69 @@ endupdate_posx:
 	PPU_SETADDR $2189
         jsr HelloVRAM	; print message in name table
         
+;;;; init sprites
+	; sprite 0
+	ldx #0
+        lda #$20	; y pos
+        sta OAM_RAM,x
+        inx
+        lda #$18	; tile index
+        sta OAM_RAM,x
+        inx
+        lda #0		; attributes
+        sta OAM_RAM,x
+        inx
+        lda #$30	; tile index
+        sta OAM_RAM,x
+        inx
+        
+	; sprite 1
+        lda #$40	; y pos
+        sta OAM_RAM,x
+        inx
+        lda #$18	; tile index
+        sta OAM_RAM,x
+        inx
+        lda #0		; attributes
+        sta OAM_RAM,x
+        inx
+        lda #$70	; tile index
+        sta OAM_RAM,x
+        inx
+        
+	; sprite 2
+        lda #$30	; y pos
+        sta OAM_RAM,x
+        inx
+        lda #$18	; tile index
+        sta OAM_RAM,x
+        inx
+        lda #0		; attributes
+        sta OAM_RAM,x
+        inx
+        lda #$a0	; tile index
+        sta OAM_RAM,x
+        inx
+        
+        
 ; reset PPU address and scroll registers
         lda #0
         sta PPU_ADDR
         sta PPU_ADDR	; PPU addr = $0000
         sta PPU_SCROLL
         sta PPU_SCROLL  ; PPU scroll = $0000
-; activate PPU graphics
-        lda #MASK_BG
-        sta PPU_MASK 	; enable rendering
         lda #CTRL_NMI
         sta PPU_CTRL	; enable NMI
         jsr WaitSync
+        
+; copy oam
+	lda #0
+        sta OAM_ADDR
+        lda #2
+        sta OAM_DMA
+; activate PPU graphics
+        lda #$1e
+        sta PPU_MASK 	; enable rendering
         jmp Tick
 
 ; set palette colors
@@ -128,7 +180,7 @@ Palette:
         hex 25122201	;background 1
         hex 02112101	;background 2
         hex 0112221c	;background 3
-        hex 19293900	;sprite 0
+        hex 25293900	;sprite 0
         hex 1a2a3a00	;sprite 1
         hex 1b2b3b00	;sprite 2
         hex 1c2c3c	;sprite 3
