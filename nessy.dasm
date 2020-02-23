@@ -1,6 +1,20 @@
 
 	include "nesdefs.dasm"
 
+;;; MACROS
+
+; SetSpritePos  spr, x, y
+        MAC SetSpritePos
+        lda #{1}
+        asl
+        asl
+        tax
+        lda #{3}
+        sta OAM_RAM,x
+        lda #{2}
+        sta OAM_RAM+3,x
+        ENDM
+
 ;;;;; VARIABLES
 
 	seg.u ZEROPAGE
@@ -24,6 +38,33 @@ Start:
         jsr WaitSync	; wait for VSYNC (and PPU warmup)
 ; set palette and nametable VRAM
 	jsr SetPalette	; set palette colors
+        
+                
+;;;; init sprites
+	; many stars
+	lda #$18   ; star!
+        ldx #0
+        ldy #0
+init_sprite_loop:
+	inx
+	sta OAM_RAM,x
+        inx
+        inx
+        inx
+        iny
+        cpy #$16
+        bne init_sprite_loop
+        
+        SetSpritePos 0, $20, $36
+        SetSpritePos 1, $70, $26
+        SetSpritePos 2, $40, $14
+        SetSpritePos 3, $24, $60
+        SetSpritePos 4, $76, $a0
+        SetSpritePos 5, $a0, $10
+        SetSpritePos 6, $b0, $b0
+        SetSpritePos 7, $c0, $50
+        SetSpritePos 8, $e0, $70
+        
         
 Tick:
 ; update posx
@@ -55,50 +96,8 @@ endupdate_posx:
         jsr HelloVRAM	; print message in name table
 	PPU_SETADDR $2189
         jsr HelloVRAM	; print message in name table
-        
-;;;; init sprites
-	; sprite 0
-	ldx #0
-        lda #$20	; y pos
-        sta OAM_RAM,x
-        inx
-        lda #$18	; tile index
-        sta OAM_RAM,x
-        inx
-        lda #0		; attributes
-        sta OAM_RAM,x
-        inx
-        lda #$30	; tile index
-        sta OAM_RAM,x
-        inx
-        
-	; sprite 1
-        lda #$40	; y pos
-        sta OAM_RAM,x
-        inx
-        lda #$18	; tile index
-        sta OAM_RAM,x
-        inx
-        lda #0		; attributes
-        sta OAM_RAM,x
-        inx
-        lda #$70	; tile index
-        sta OAM_RAM,x
-        inx
-        
-	; sprite 2
-        lda #$30	; y pos
-        sta OAM_RAM,x
-        inx
-        lda #$18	; tile index
-        sta OAM_RAM,x
-        inx
-        lda #0		; attributes
-        sta OAM_RAM,x
-        inx
-        lda #$a0	; tile index
-        sta OAM_RAM,x
-        inx
+
+
         
         
 ; reset PPU address and scroll registers
