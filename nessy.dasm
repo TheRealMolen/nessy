@@ -70,7 +70,7 @@ init_sprite_loop:
         InitSprite $29, $b3, $b5, $18
         InitSprite $2a, $91, $d6, $b6
         InitSprite $2b, $48, $e9, $18
-        InitSprite $2c, $10, $93, $18
+        InitSprite $2c, $40, $93, $18
         InitSprite $2d, $33, $b5, $18
         InitSprite $2e, $83, $64, $18
         InitSprite $2f, $d8, $e9, $18
