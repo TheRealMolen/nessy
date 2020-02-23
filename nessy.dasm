@@ -3,18 +3,21 @@
 
 ;;; MACROS
 
-; SetSpritePos  spr, x, y
-        MAC SetSpritePos
+; InitSprite  spr, x, y, tile
+        MAC InitSprite
         lda #{1}
         asl
         asl
         tax
         lda #{3}
         sta OAM_RAM,x
+        lda #{4}
+        sta OAM_RAM+1,x
         lda #{2}
         sta OAM_RAM+3,x
         ENDM
-
+        
+        
 ;;;;; VARIABLES
 
 	seg.u ZEROPAGE
@@ -43,7 +46,7 @@ Start:
 ;;;; init sprites
 	; many stars
 	lda #$18   ; star!
-        ldx #0
+        ldx #$20 * 4
         ldy #0
 init_sprite_loop:
 	inx
@@ -52,18 +55,25 @@ init_sprite_loop:
         inx
         inx
         iny
-        cpy #$16
+        cpy #$10
         bne init_sprite_loop
         
-        SetSpritePos 0, $20, $36
-        SetSpritePos 1, $70, $26
-        SetSpritePos 2, $40, $14
-        SetSpritePos 3, $24, $60
-        SetSpritePos 4, $76, $a0
-        SetSpritePos 5, $a0, $10
-        SetSpritePos 6, $b0, $b0
-        SetSpritePos 7, $c0, $50
-        SetSpritePos 8, $e0, $70
+        InitSprite $20, $24, $33, $b6
+        InitSprite $21, $77, $26, $18
+        InitSprite $22, $46, $14, $18
+        InitSprite $23, $11, $61, $18
+        InitSprite $24, $76, $a2, $18
+        InitSprite $25, $a0, $13, $18
+        InitSprite $26, $e3, $b2, $18
+        InitSprite $27, $c1, $51, $18
+        InitSprite $28, $e4, $73, $b6
+        InitSprite $29, $b3, $b5, $18
+        InitSprite $2a, $91, $d6, $b6
+        InitSprite $2b, $48, $e9, $18
+        InitSprite $2c, $10, $93, $18
+        InitSprite $2d, $33, $b5, $18
+        InitSprite $2e, $83, $64, $18
+        InitSprite $2f, $d8, $e9, $18
         
         
 Tick:
@@ -72,6 +82,7 @@ Tick:
         lda #3
         cmp timr
         bne endupdate_posx
+        jsr UpdateStars
         lda #0
         sta timr
 	inc posx
@@ -82,19 +93,8 @@ Tick:
         sta posx
 endupdate_posx:
 
-;;;; bg
-	PPU_SETADDR $2085
-	lda #24
-        jsr ClearLine
-	lda #$20
-        sta PPU_ADDR
-        lda #$85
-        adc posx
-        sta PPU_ADDR
-        jsr HelloVRAM	; print message in name table
-	PPU_SETADDR $20e7
-        jsr HelloVRAM	; print message in name table
-	PPU_SETADDR $2189
+
+	PPU_SETADDR $2187
         jsr HelloVRAM	; print message in name table
 
 
@@ -159,8 +159,44 @@ ClearLine: subroutine
 
 ; ASCII message to display on screen
 HelloMsg:
-	.byte "bum on a stix"
+	.byte "hello "
+        .byte $d8
+        .byte $da
+        .byte " spaceboy"
         .byte 0		; zero terminator
+        
+        
+        
+        
+UpdateStars: subroutine
+	ldx #$20 * 4
+.loop:
+	inc OAM_RAM,x	; inc spr.y
+        lda #$f8	; spr.x &= $f8  (bottom 3 bits 0)
+        and OAM_RAM+3,x
+        sta OAM_RAM+3,x
+        lda OAM_RAM,x	; A = spr.y & $f
+        and #$f
+        lsr		; A >>= 1   (A is 3 bits)
+        cmp #4		; N = (A - 5 < 0)
+        bmi .add_dx	; if (A >= 5) then
+        eor #$ff	;    A = -A
+        clc
+        adc #8
+.add_dx
+	clc
+        adc OAM_RAM+3,x
+        sta OAM_RAM+3,x
+        
+	; move to next sprite
+	txa
+        clc
+        adc #4
+        tax
+	cpx #$40 + (#$21 * 4)
+	bne .loop	; loop
+        rts		; return to caller
+
 
 ;;;;; COMMON SUBROUTINES
 
@@ -175,14 +211,14 @@ NMIHandler:
 
 Palette:
 	hex 01		;screen color
-	hex 0c202001	;background 0
+	hex 0c302001	;background 0
         hex 25122201	;background 1
         hex 02112101	;background 2
         hex 0112221c	;background 3
-        hex 25293900	;sprite 0
-        hex 1a2a3a00	;sprite 1
-        hex 1b2b3b00	;sprite 2
-        hex 1c2c3c	;sprite 3
+        hex 25273825	;sprite 0
+        hex 142a3725	;sprite 1
+        hex 142b3b25	;sprite 2
+        hex 1c2c3c25	;sprite 3
 
 ;;;;; CPU VECTORS
 
