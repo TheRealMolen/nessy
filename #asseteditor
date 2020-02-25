@@ -57,8 +57,6 @@ Start:
 ; set palette and nametable VRAM
 	jsr SetPalette	; set palette colors
         
-        ; load map
-        jsr LoadMap
         
                 
 ;;;; init sprites
@@ -77,9 +75,9 @@ init_sprite_loop:
         bne init_sprite_loop
         
         ;; init kris (palette 1)
-        InitSprite $0, $78, $ae, $b0
-        InitSprite $1, $78, $b6, $c0
-        InitSprite $2, $78, $be, $d0
+        InitSprite $0, $78, $a0, $b0
+        InitSprite $1, $78, $a8, $c0
+        InitSprite $2, $78, $b0, $d0
         lda #$01
         sta OAM_RAM+2
         sta OAM_RAM+6
@@ -314,43 +312,7 @@ UpdateMotes: subroutine
 
 
 
-LoadMap: subroutine
-	PPU_SETADDR $2320
-        ldx #0
-.loop
-	lda land_ground,x
-        sta PPU_DATA
-        inx
-        cpx #$20
-        bne .loop
-        
-	PPU_SETADDR $2340
-        ldx #0
-.loop2
-	lda land_ground+$20,x
-        sta PPU_DATA
-        inx
-        cpx #$20
-        bne .loop2
-        
-	PPU_SETADDR $2360
-        ldx #0
-.loop3
-	lda land_ground+$40,x
-        sta PPU_DATA
-        inx
-        cpx #$20
-        bne .loop3
-        
-        ; attribute table
-        PPU_SETADDR $23c0
-        lda #0
-        ldx #$40
-.loopattr
-	sta PPU_DATA
-        dex
-        bne .loopattr
-	rts
+
 
 
 
@@ -382,17 +344,14 @@ NMIHandler:
 
 Palette:
 	hex 01		;screen color
-	hex 09082d3d	;background 0 (title text)
+	hex 10001d01	;background 0 (title text)
         hex 00000000	;background 1
         hex 00000000	;background 2
-        hex 0000002d	;background 3
-        hex 00010f0f	;sprite 0
+        hex 00000020	;background 3
+        hex 3d230025	;sprite 0
         hex 08171725	;sprite 1 -- kris
         hex 142b3b25	;sprite 2
         hex 1c2c3c25	;sprite 3
-        
-        
- 	include "land.asm"
 
 ;;;;; CPU VECTORS
 
