@@ -3,6 +3,13 @@
 
 ;;; MACROS
 
+; Arithmetic shift right A
+        MAC _ASR
+        cmp #$80
+        ror
+        ENDM
+
+
 ; InitSprite  spr, x, y, tile
         MAC InitSprite
         lda #{1}
@@ -24,7 +31,11 @@
 	org $0
         
 timr	byte
-posx	byte
+pad0	byte
+
+kr_x	byte
+kr_vx	byte
+
 
 ;;;;; NES CARTRIDGE HEADER
 
@@ -42,6 +53,12 @@ Start:
 ; set palette and nametable VRAM
 	jsr SetPalette	; set palette colors
         
+;;;; init bg
+	PPU_SETADDR $2187
+        jsr HelloVRAM	; print message in name table
+        
+        
+        
                 
 ;;;; init sprites
 	; many stars
@@ -57,6 +74,15 @@ init_sprite_loop:
         iny
         cpy #$10
         bne init_sprite_loop
+        
+        ;; init kris (palette 1)
+        InitSprite $0, $78, $a0, $b0
+        InitSprite $1, $78, $a8, $c0
+        InitSprite $2, $78, $b0, $d0
+        lda #$01
+        sta OAM_RAM+2
+        sta OAM_RAM+6
+        sta OAM_RAM+10
         
         InitSprite $20, $24, $33, $b6
         InitSprite $21, $77, $26, $18
@@ -75,7 +101,13 @@ init_sprite_loop:
         InitSprite $2e, $83, $64, $18
         InitSprite $2f, $d8, $e9, $18
         
+;;;;; init objects
+	lda #$78
+        sta kr_x
         
+
+;;;;; start of frame
+
 Tick:
 ; update posx
 	inc timr
@@ -85,21 +117,22 @@ Tick:
         jsr UpdateStars
         lda #0
         sta timr
-	inc posx
-        lda #8
-        cmp posx
-        bpl endupdate_posx
-        lda #0
-        sta posx
 endupdate_posx:
 
+        ;understanding flags with adc
+        ; if A + (mem) flips A -ve, N bit is set
+        ;lda #-4
+        ;sta pad0
+        ;lda #5
+        ;clc
+        ;adc pad0
+        ;nop
 
-	PPU_SETADDR $2187
-        jsr HelloVRAM	; print message in name table
-
+	jsr UpdateKris
 
         
-        
+;;;;; end of frame
+
 ; reset PPU address and scroll registers
         lda #0
         sta PPU_ADDR
@@ -118,7 +151,160 @@ endupdate_posx:
 ; activate PPU graphics
         lda #$1e
         sta PPU_MASK 	; enable rendering
+        jsr ReadJoypad0
+        sta pad0
         jmp Tick
+        
+        
+
+;;;; update kris
+UpdateKris: subroutine
+
+;;; update facing
+	lda pad0
+        and #$2
+        bne .left
+	lda pad0
+        and #$1
+        bne .right
+        jmp .friction
+.left:
+	lda kr_vx
+        cmp #-16
+        beq .minspd
+        dec kr_vx
+        cmp #1
+        bmi .minspd
+        dec kr_vx
+.minspd:
+; set flipx flag
+	lda OAM_RAM+2
+	ora #$40
+        sta OAM_RAM+2
+        sta OAM_RAM+6
+        sta OAM_RAM+10
+	jmp .enddir
+.right:
+	lda kr_vx
+        cmp #16
+        beq .maxspd
+        ; bonus turnaround
+        inc kr_vx
+        cmp #-1
+        bpl .maxspd
+        inc kr_vx
+.maxspd:
+; clear flipx flag
+	lda OAM_RAM+2
+        and #$bf
+        sta OAM_RAM+2
+        sta OAM_RAM+6
+        sta OAM_RAM+10
+	jmp .enddir
+        
+.friction
+	lda kr_vx
+        cmp #0
+        bmi .incvel
+        beq .enddir
+.decvel
+	clc
+        sbc #0
+	sta kr_vx
+	jmp .enddir
+.incvel
+	sec
+        adc #1
+	sta kr_vx
+.enddir
+
+
+    ; lda i
+    ; cmp j
+    ; bmi .i_lt_j
+    ; bpl .i_ge_j
+    ; bcs .i_le_j
+    ; bcc .i_gt_j
+
+; clamp kris to screen
+	lda kr_vx
+        lda #$8
+        cmp #0
+        bmi .clampleft
+        beq .doneclampx
+.clampright
+	lda #$f0
+        cmp kr_x
+        bcs .doneclampx
+        lda #0
+        sta kr_vx
+	jmp .doneclampx
+.clampleft
+	lda kr_x
+        cmp #$6
+        bcs .doneclampx
+        lda #0
+        sta kr_vx
+	jmp .doneclampx
+.doneclampx
+        
+        
+        
+
+; update kris x pos  
+	lda kr_vx
+        _ASR		; vx /= 4
+        _ASR
+        clc
+        adc kr_x
+        sta kr_x
+        
+        sta OAM_RAM+3
+        sta OAM_RAM+7
+        sta OAM_RAM+11
+
+
+	rts
+        
+        
+        
+        
+UpdateStars: subroutine
+	ldx #$20 * 4
+.loop:
+	inc OAM_RAM,x	; inc spr.y
+        lda #$f8	; spr.x &= $f8  (bottom 3 bits 0)
+        and OAM_RAM+3,x
+        sta OAM_RAM+3,x
+        lda OAM_RAM,x	; A = spr.y & $f
+        and #$f
+        lsr		; A >>= 1   (A is 3 bits)
+        cmp #4		; N = (A - 4 < 0)
+        bmi .add_dx	; if (A >= 4) then
+        eor #$ff	;    A = -A
+        clc
+        adc #8
+.add_dx
+	clc
+        adc OAM_RAM+3,x
+        sta OAM_RAM+3,x
+        
+	; move to next sprite
+	txa
+        clc
+        adc #4
+        tax
+	cpx #$40 + (#$21 * 4)
+	bne .loop	; loop
+        rts		; return to caller
+
+
+
+
+
+
+
+
 
 ; set palette colors
 SetPalette: subroutine
@@ -166,36 +352,8 @@ HelloMsg:
         .byte 0		; zero terminator
         
         
-        
-        
-UpdateStars: subroutine
-	ldx #$20 * 4
-.loop:
-	inc OAM_RAM,x	; inc spr.y
-        lda #$f8	; spr.x &= $f8  (bottom 3 bits 0)
-        and OAM_RAM+3,x
-        sta OAM_RAM+3,x
-        lda OAM_RAM,x	; A = spr.y & $f
-        and #$f
-        lsr		; A >>= 1   (A is 3 bits)
-        cmp #4		; N = (A - 5 < 0)
-        bmi .add_dx	; if (A >= 5) then
-        eor #$ff	;    A = -A
-        clc
-        adc #8
-.add_dx
-	clc
-        adc OAM_RAM+3,x
-        sta OAM_RAM+3,x
-        
-	; move to next sprite
-	txa
-        clc
-        adc #4
-        tax
-	cpx #$40 + (#$21 * 4)
-	bne .loop	; loop
-        rts		; return to caller
+
+
 
 
 ;;;;; COMMON SUBROUTINES
@@ -216,7 +374,7 @@ Palette:
         hex 02112101	;background 2
         hex 0112221c	;background 3
         hex 25273825	;sprite 0
-        hex 142a3725	;sprite 1
+        hex 25273125	;sprite 1 -- kris
         hex 142b3b25	;sprite 2
         hex 1c2c3c25	;sprite 3
 
