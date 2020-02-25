@@ -54,7 +54,6 @@ Start:
 	jsr SetPalette	; set palette colors
         
 ;;;; init bg
-	PPU_SETADDR $2187
         jsr HelloVRAM	; print message in name table
         
         
@@ -92,9 +91,9 @@ init_sprite_loop:
         InitSprite $25, $a0, $13, $18
         InitSprite $26, $e3, $b2, $18
         InitSprite $27, $c1, $51, $18
-        InitSprite $28, $e4, $73, $b6
+        InitSprite $28, $e4, $73, $18
         InitSprite $29, $b3, $b5, $18
-        InitSprite $2a, $91, $d6, $b6
+        InitSprite $2a, $91, $d6, $18
         InitSprite $2b, $48, $e9, $18
         InitSprite $2c, $40, $93, $18
         InitSprite $2d, $33, $b5, $18
@@ -319,17 +318,26 @@ SetPalette: subroutine
 	bne .loop	; not yet, loop
         rts		; return to caller
 
-; fill video RAM with "Hello World" msg
-; PPU ADDR needs to have been set with target pos before calling
+; fill video RAM with title text
 HelloVRAM: subroutine
+	PPU_SETADDR $214b
 	ldy #0		; set Y counter to 0
 .loop:
-	lda HelloMsg,y	; get next character
+	lda TitleMsg1,y	; get next character
         beq .end	; is 0? exit loop
 	sta PPU_DATA	; store+advance PPU
         iny		; next character
 	bne .loop	; loop
 .end
+	PPU_SETADDR $21a7
+	ldy #0		; set Y counter to 0
+.loop2:
+	lda TitleMsg2,y	; get next character
+        beq .end2	; is 0? exit loop
+	sta PPU_DATA	; store+advance PPU
+        iny		; next character
+	bne .loop2	; loop
+.end2
         rts		; return to caller; fill video RAM with "Hello World" msg
 
 ; clear a chunk of video ram
@@ -344,11 +352,11 @@ ClearLine: subroutine
         rts		; return to caller
 
 ; ASCII message to display on screen
-HelloMsg:
-	.byte "hello "
-        .byte $d8
-        .byte $da
-        .byte " spaceboy"
+TitleMsg1:
+	.byte "D E A T H"
+        .byte 0
+TitleMsg2:
+        .byte "S T R A N D I N G"
         .byte 0		; zero terminator
         
         
@@ -369,12 +377,12 @@ NMIHandler:
 
 Palette:
 	hex 01		;screen color
-	hex 0c302001	;background 0
-        hex 25122201	;background 1
-        hex 02112101	;background 2
-        hex 0112221c	;background 3
-        hex 25273825	;sprite 0
-        hex 25273125	;sprite 1 -- kris
+	hex 10001d01	;background 0 (title text)
+        hex 00000000	;background 1
+        hex 00000000	;background 2
+        hex 00000020	;background 3
+        hex 2022d025	;sprite 0
+        hex 08171725	;sprite 1 -- kris
         hex 142b3b25	;sprite 2
         hex 1c2c3c25	;sprite 3
 
@@ -385,5 +393,5 @@ Palette:
 ;;;;; TILE SETS
 
 	org $10000
-        incbin "jroatch.chr"
-        incbin "jroatch.chr"
+        incbin "strand.chr"
+        incbin "strand.chr"
