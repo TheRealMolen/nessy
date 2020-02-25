@@ -1,0 +1,40 @@
+
+
+	lda #1
+    adc #1
+    clc
+    clv
+                ; debugger shows:
+    lda #$10    ;   Z
+    cmp #$8     ;   Z C
+    cmp #$10    ;     C
+    cmp #$16    ; N Z  
+    cmp #$f8    ;   Z  
+
+    clc
+    clv
+    lda #$f0    ; N Z
+    cmp #$e8    ;   Z C
+    cmp #$f0    ;     C
+    cmp #$f8    ; N Z
+    cmp #$08    ; N Z C
+
+    clc
+    clv
+    lda #$78    ;   Z
+    cmp #$e8    ; N Z
+    cmp #$78    ;     C
+    cmp #$f8    ; N Z
+    cmp #$08    ;   Z C
+
+
+    ; cmp N =>  C := (N <= A), (A >= N)
+    ;           Z := N == A    (8bws debugger shows not-Z  o_O)
+    ;           N := (A - N)msb     i.e. (A-N) < 0 , (A < N)
+
+    ; lda i
+    ; cmp j
+    ; bmi .i_lt_j
+    ; bpl .i_ge_j
+    ; bcs .i_le_j
+    ; bcc .i_gt_j
