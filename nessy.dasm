@@ -3,6 +3,10 @@
 
 ;;; MACROS
 
+
+OAM_FLIPX = $40
+
+
 ; Arithmetic shift right A
         MAC _ASR
         cmp #$80
@@ -53,10 +57,6 @@ Start:
 ; set palette and nametable VRAM
 	jsr SetPalette	; set palette colors
         
-;;;; init bg
-        jsr HelloVRAM	; print message in name table
-        
-        
         
                 
 ;;;; init sprites
@@ -83,22 +83,48 @@ init_sprite_loop:
         sta OAM_RAM+6
         sta OAM_RAM+10
         
-        InitSprite $20, $24, $33, $b6
-        InitSprite $21, $77, $26, $18
+        ;; init title
+        InitSprite $04, $58, $50, $44	; D
+        InitSprite $05, $68, $50, $45	; E
+        InitSprite $06, $78, $50, $41	; A
+        InitSprite $07, $88, $50, $54	; T
+        InitSprite $08, $98, $50, $48	; H
+        InitSprite $09, $38, $63, $53	; S
+        InitSprite $0a, $48, $63, $54	; T
+        InitSprite $0b, $58, $63, $52	; R
+        InitSprite $0c, $68, $63, $41	; A
+        InitSprite $0d, $78, $63, $4e	; N
+        InitSprite $0e, $88, $63, $44	; D
+        InitSprite $0f, $98, $63, $49	; I
+        InitSprite $10, $a8, $63, $4e	; N
+        InitSprite $11, $b8, $63, $47	; G
+        
+        ;; init motes
+        InitSprite $20, $33, $10, $16
+        InitSprite $21, $77, $26, $17
         InitSprite $22, $46, $14, $18
-        InitSprite $23, $11, $61, $18
-        InitSprite $24, $76, $a2, $18
+        InitSprite $23, $11, $61, $16
+        InitSprite $24, $76, $a2, $17
         InitSprite $25, $a0, $13, $18
-        InitSprite $26, $e3, $b2, $18
-        InitSprite $27, $c1, $51, $18
+        InitSprite $26, $e3, $b2, $16
+        InitSprite $27, $c1, $51, $17
         InitSprite $28, $e4, $73, $18
-        InitSprite $29, $b3, $b5, $18
-        InitSprite $2a, $91, $d6, $18
+        InitSprite $29, $b3, $b5, $16
+        InitSprite $2a, $91, $d6, $17
         InitSprite $2b, $48, $e9, $18
-        InitSprite $2c, $40, $93, $18
-        InitSprite $2d, $33, $b5, $18
+        InitSprite $2c, $40, $93, $16
+        InitSprite $2d, $33, $b5, $17
         InitSprite $2e, $83, $64, $18
-        InitSprite $2f, $d8, $e9, $18
+        InitSprite $2f, $d8, $e9, $16
+        ; flip some
+        lda #OAM_FLIPX
+        sta OAM_RAM+2+$20*4
+        sta OAM_RAM+2+$21*4
+        sta OAM_RAM+2+$23*4
+        sta OAM_RAM+2+$25*4
+        sta OAM_RAM+2+$27*4
+        sta OAM_RAM+2+$2a*4
+        sta OAM_RAM+2+$2f*4
         
 ;;;;; init objects
 	lda #$78
@@ -113,7 +139,7 @@ Tick:
         lda #3
         cmp timr
         bne endupdate_posx
-        jsr UpdateStars
+        jsr UpdateMotes
         lda #0
         sta timr
 endupdate_posx:
@@ -268,31 +294,16 @@ UpdateKris: subroutine
         
         
         
-UpdateStars: subroutine
+UpdateMotes: subroutine
 	ldx #$20 * 4
 .loop:
-	inc OAM_RAM,x	; inc spr.y
-        lda #$f8	; spr.x &= $f8  (bottom 3 bits 0)
-        and OAM_RAM+3,x
-        sta OAM_RAM+3,x
-        lda OAM_RAM,x	; A = spr.y & $f
-        and #$f
-        lsr		; A >>= 1   (A is 3 bits)
-        cmp #4		; N = (A - 4 < 0)
-        bmi .add_dx	; if (A >= 4) then
-        eor #$ff	;    A = -A
-        clc
-        adc #8
-.add_dx
-	clc
-        adc OAM_RAM+3,x
-        sta OAM_RAM+3,x
-        
+	dec OAM_RAM,x	; dec spr.y
+
 	; move to next sprite
-	txa
-        clc
-        adc #4
-        tax
+        inx
+        inx
+        inx
+        inx
 	cpx #$40 + (#$21 * 4)
 	bne .loop	; loop
         rts		; return to caller
@@ -318,50 +329,6 @@ SetPalette: subroutine
 	bne .loop	; not yet, loop
         rts		; return to caller
 
-; fill video RAM with title text
-HelloVRAM: subroutine
-	PPU_SETADDR $214b
-	ldy #0		; set Y counter to 0
-.loop:
-	lda TitleMsg1,y	; get next character
-        beq .end	; is 0? exit loop
-	sta PPU_DATA	; store+advance PPU
-        iny		; next character
-	bne .loop	; loop
-.end
-	PPU_SETADDR $21a7
-	ldy #0		; set Y counter to 0
-.loop2:
-	lda TitleMsg2,y	; get next character
-        beq .end2	; is 0? exit loop
-	sta PPU_DATA	; store+advance PPU
-        iny		; next character
-	bne .loop2	; loop
-.end2
-        rts		; return to caller; fill video RAM with "Hello World" msg
-
-; clear a chunk of video ram
-; PPU ADDR needs to have been set with target pos before calling
-; Acc is the clear length
-ClearLine: subroutine
-	ldx #0
-.loop:
-	stx PPU_DATA	; store+advance PPU
-        sbc #1
-	bcs .loop	; loop
-        rts		; return to caller
-
-; ASCII message to display on screen
-TitleMsg1:
-	.byte "D E A T H"
-        .byte 0
-TitleMsg2:
-        .byte "S T R A N D I N G"
-        .byte 0		; zero terminator
-        
-        
-
-
 
 
 ;;;;; COMMON SUBROUTINES
@@ -381,7 +348,7 @@ Palette:
         hex 00000000	;background 1
         hex 00000000	;background 2
         hex 00000020	;background 3
-        hex 2022d025	;sprite 0
+        hex 3d230025	;sprite 0
         hex 08171725	;sprite 1 -- kris
         hex 142b3b25	;sprite 2
         hex 1c2c3c25	;sprite 3
