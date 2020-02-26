@@ -40,6 +40,7 @@ r1	byte
 
 rand	byte
 
+;; gamestate - 0 is intro, 1 is gameplay
 state	byte
 
 timr	byte
@@ -55,6 +56,7 @@ sam_tmr	byte
 
 world_inc byte
 scrollx word
+flipbg  byte	; when this is true, we need to handle bg flipping next nmi
 
 title_skip byte
 title_fade byte
@@ -148,7 +150,36 @@ update_title:
         inc state
 
 common_update:
+	;; reset our world increment for this frame
+	lda #0
+	sta world_inc
+        
 	jsr UpdateSam
+        
+;; handle any push scrolling that sam did
+	lda world_inc
+	tax
+.scroll_loop
+        beq .no_scroll
+        inc scrollx
+        bne .simple_scroll
+	;; we've just advanced a whole double-bg
+        inc scrollx+1
+        lda #1
+        sta flipbg	; we need to handle bg flipping logic
+.simple_scroll
+        inx
+        jmp .scroll_loop
+.no_scroll
+        
+        
+     ;   dec world_inc
+     ;   inc scrollx
+     ;   bne endupdate_posx
+	;; we've just advanced a whole double-bg
+     ;   inc scrollx+1
+     ;   lda #1
+     ;   sta flipbg	; we need to handle bg flipping logic
         
         lda timr
         bne .no_motes
@@ -178,39 +209,51 @@ no_render_title:
         
 
 ;;;;; end of frame
+	;; TODO: move to NMI handler!
 	jsr WaitSync
         
 ; update posx
-	lda #0
-	sta world_inc
+	;lda #0
+	;sta world_inc
+        
 	inc timr
         lda #3
         cmp timr
         bne endupdate_posx
-        dec world_inc
-        inc scrollx
-        bne .scrollx_done
-;; we've just advanced a whole double-bg
-        inc scrollx+1
+        lda #0
+        sta timr
+        
+     ;   dec world_inc
+     ;   inc scrollx
+     ;   bne endupdate_posx
+	;; we've just advanced a whole double-bg
+     ;   inc scrollx+1
+     ;   lda #1
+     ;   sta flipbg	; we need to handle bg flipping logic
+endupdate_posx:
+
+; handle any bg updates
+	lda flipbg
+        beq .post_flipbg
         lda scrollx+1
         cmp #2
         beq .move_req_msg
         cmp #3
         beq .wipe_req_msg
-        jmp .scrollx_done
+        jmp .bg_flip_done
 .move_req_msg
 	lda #$2c
         jsr ClearDeliveryRequest
         lda #20
         jsr PrintDeliveryRequest
-        jmp .scrollx_done
+        jmp .bg_flip_done
 .wipe_req_msg
 	lda #$20
         jsr ClearDeliveryRequest
-.scrollx_done
-        lda #0
-        sta timr
-endupdate_posx:
+.bg_flip_done
+	lda #0
+        sta flipbg
+.post_flipbg
         
         
 ; copy oam
@@ -307,17 +350,38 @@ UpdateSam: subroutine
 .postanim
         
 
-; update sam x pos  
+; update sam x pos
+screen_clamp_point = 10
+push_scroll_point = $88
+
 	lda sam_vx
         _ASR		; vx /= 4
         _ASR
         clc		; add on sam's x pos
         adc sam_x
-        adc world_inc	; plus the world scroll pos
-        cmp #10
+        ; [not in push scroll adc world_inc	; plus the world scroll pos
+        cmp #screen_clamp_point
         bcs .not_at_left
-        lda #10
+        lda sam_vx
+        bpl .moving_on_up
+        lda #0
+        sta sam_vx
+        sta sam_fr
+.moving_on_up
+        lda #screen_clamp_point
+        jmp .updated_x
 .not_at_left
+	; do we need to push scroll?
+        cmp #push_scroll_point
+        bcc .updated_x
+        ; yep! figure out how much by...
+        sta r0
+        lda #push_scroll_point
+        sec
+        sbc r0
+        sta world_inc
+        lda #push_scroll_point
+.updated_x
         sta sam_x
 
 	rts
