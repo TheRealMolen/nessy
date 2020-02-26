@@ -59,6 +59,8 @@ scrollx word
 title_skip byte
 title_fade byte
 
+pu_state ds.b num_pickups
+
 
 ;;;;; NES CARTRIDGE HEADER
 
@@ -115,6 +117,11 @@ Start:
         lda #$b6
         sta sam_y
         
+        ;;;;; DEBUG HACK!
+        lda #1
+        sta pu_state+0
+        sta pu_state+1
+        
 ;;;;; setup ppu
         lda #$18
         sta PPU_MASK 	; enable rendering
@@ -146,9 +153,9 @@ endupdate_posx:
         jmp common_update
 
 update_title:
-	lda #$2
-        bit scrollx
-        beq common_update
+	lda scrollx
+        and #$3
+        bne common_update
         inc title_fade
         bne common_update
         inc state
@@ -159,6 +166,7 @@ common_update:
 ; build oam buffer
 	ldx #0
         jsr RenderSam
+        jsr RenderPickups
         
         lda state
         bne no_render_title
@@ -334,6 +342,79 @@ RenderSam: subroutine
         pla
         sta sam_y
         rts
+        
+        
+;;;; starting oam offset goes in X (and new one is returned in x)
+RenderPickups: subroutine
+	lda sam_x	; put carry pos in r0
+        sta r0
+        
+        ;; store backpack inc in r1 (and update initial pos)
+        lda sam_oam_attrs ; load sprite attrs (flipx)
+        and #OAM_FLIPX
+        beq .face_right
+.face_left        
+        lda #-4		; inc per backpack is -4
+        sta r1
+        lda r0
+	clc
+        adc #3
+        sta r0
+        jmp .done_flip
+.face_right
+	lda #4		; inc per backpack is 4
+        sta r1		; r1 is backpack inc
+        lda r0		; adjust initial pos
+	sec
+        sbc #8
+        sta r0 
+.done_flip
+	ldy #0		; y is curr pickup
+        
+.loop
+	lda pu_state,y
+        beq .on_ground
+
+.on_back
+	lda sam_y	; sprite y is on sam's back
+        sec
+        sbc #10
+        sta OAM_RAM,x
+        inx
+        lda #pickup_carry_tile	; sprite tile is static
+        sta OAM_RAM,x
+        inx
+        lda #1		; set sprite attrs (shares a pal with sam, never flips x)
+        sta OAM_RAM,x
+        inx
+        lda r0		; sprite x is behind sam
+        sta OAM_RAM,x
+        inx
+        sec
+      	sbc r1
+        sta r0
+        
+        jmp .end_pu
+        
+.on_ground
+        lda #$ff	; set sprite y
+        sta OAM_RAM,x
+        inx
+        lda #pickup_static_tile
+        sta OAM_RAM,x
+        inx
+        lda #1		; set sprite attrs (shares a pal with sam, never flips x)
+        sta OAM_RAM,x
+        inx
+        lda #70	; set sprite x
+        sta OAM_RAM,x
+        inx
+        
+.end_pu
+        iny		; loop
+        cpy #num_pickups
+        bne .loop
+	rts
         
         
 ;;;; starting oam offset goes in X (and new one is returned in x)
@@ -569,13 +650,13 @@ Palette:
         hex 25		; bg3 unused
         hex 000000	;background 3
         hex 3d		;screen colour MIRROR
-        hex 001d0f	;sprite 0
+        hex 001d0f	;sprite 0 -- motes
         hex 25		; bg1 unused MIRROR
-        hex 0d1727	;sprite 1 -- sam
+        hex 0d1727	;sprite 1 -- sam & pickups
         hex 25		; bg2 unused MIRROR
-        hex 142b3b	;sprite 2
+        hex 252525	;sprite 2
         hex 25		; bg3 unused MIRROR
-        hex 1c2c3c	;sprite 3
+        hex 252525	;sprite 3
         
         
         align $100
