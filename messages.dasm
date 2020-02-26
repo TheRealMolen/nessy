@@ -1,0 +1,41 @@
+
+
+
+;; blat delivery instructions into BG ram
+PrintDeliveryRequest: subroutine
+;; copy penny's picture very manually
+	PPU_SETADDR $2C40
+        lda #$ae
+	sta PPU_DATA
+        lda #$af
+	sta PPU_DATA
+	PPU_SETADDR $2C60
+        lda #$be
+	sta PPU_DATA
+        lda #$bf
+	sta PPU_DATA
+	
+	PPU_SETADDR $2C63
+	ldy #0
+.loop1:
+	lda delivery_msg,y
+        beq .eol1
+	sta PPU_DATA
+        iny
+	bne .loop1
+.eol1
+	PPU_SETADDR $2Ca0
+        iny
+.loop2
+	lda delivery_msg,y
+        beq .eol2
+	sta PPU_DATA
+        iny
+	bne .loop2
+.eol2
+        rts
+
+delivery_msg:
+	.byte "PENNY L. ARABIATA",0,$22
+        .byte "I need connection, asap!",$22,0
+

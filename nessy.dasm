@@ -80,6 +80,7 @@ Start:
         
         ; load map
         jsr LoadMap
+        jsr PrintDeliveryRequest
         
                 
 ;;;; init sprites
@@ -628,6 +629,8 @@ SetPalette: subroutine
         rts		; return to caller
 
 
+	include "messages.dasm"
+
 
 ;;;;; COMMON SUBROUTINES
 
@@ -646,9 +649,9 @@ Palette:
         hex 25		; bg1 unused
         hex 1d181b	;background 1 - background
         hex 25		; bg2 unused
-        hex 000000	;background 2
+        hex 07170c	;background 2 - penny
         hex 25		; bg3 unused
-        hex 000000	;background 3
+        hex 001d0f	;background 3 - text
         hex 3d		;screen colour MIRROR
         hex 001d0f	;sprite 0 -- motes
         hex 25		; bg1 unused MIRROR
