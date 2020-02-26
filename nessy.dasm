@@ -37,8 +37,8 @@ OAM_FLIPX = $40
 timr	byte
 pad0	byte
 
-kr_x	byte
-kr_vx	byte
+sam_x	byte
+sam_vx	byte
 
 world_inc byte
 scrollx word
@@ -46,7 +46,7 @@ scrollx word
 
 ;;;;; NES CARTRIDGE HEADER
 
-	NES_HEADER 0,2,1,0 ; mapper 0, 2 PRGs, 1 CHR, horiz. mirror
+	NES_HEADER 0,2,1,NES_MIRR_VERT ; mapper 0, 2 PRGs, 1 CHR, horiz. mirror
         
 
 ;;;;; START OF CODE
@@ -79,7 +79,7 @@ init_sprite_loop:
         cpy #$10
         bne init_sprite_loop
         
-        ;; init kris (palette 1)
+        ;; init sam (palette 1)
         InitSprite $0, $78, $ae, $b0
         InitSprite $1, $78, $b6, $c0
         InitSprite $2, $78, $be, $d0
@@ -89,11 +89,11 @@ init_sprite_loop:
         sta OAM_RAM+10
         
         ;; init title
-        InitSprite $04, $58, $50, $44	; D
+        InitSprite $04, $58, $50, $47	; G
         InitSprite $05, $68, $50, $45	; E
-        InitSprite $06, $78, $50, $41	; A
-        InitSprite $07, $88, $50, $54	; T
-        InitSprite $08, $98, $50, $48	; H
+        InitSprite $06, $78, $50, $4f	; O
+        InitSprite $07, $88, $50, $46	; F
+        InitSprite $08, $98, $50, $46	; F
         InitSprite $09, $38, $63, $53	; S
         InitSprite $0a, $48, $63, $54	; T
         InitSprite $0b, $58, $63, $52	; R
@@ -133,7 +133,7 @@ init_sprite_loop:
         
 ;;;;; init objects
 	lda #$78
-        sta kr_x
+        sta sam_x
         
 
 ;;;;; start of frame
@@ -156,16 +156,7 @@ Tick:
         sta timr
 endupdate_posx:
 
-        ;understanding flags with adc
-        ; if A + (mem) flips A -ve, N bit is set
-        ;lda #-4
-        ;sta pad0
-        ;lda #5
-        ;clc
-        ;adc pad0
-        ;nop
-
-	jsr UpdateKris
+	jsr UpdateSam
 
         
 ;;;;; end of frame
@@ -196,8 +187,8 @@ endupdate_posx:
         
         
 
-;;;; update kris
-UpdateKris: subroutine
+
+UpdateSam: subroutine
 
 ;;; update facing
 	lda pad0
@@ -208,13 +199,13 @@ UpdateKris: subroutine
         bne .right
         jmp .friction
 .left:
-	lda kr_vx
+	lda sam_vx
         cmp #-12
         beq .minspd
-        dec kr_vx
+        dec sam_vx
         cmp #1
         bmi .minspd
-        dec kr_vx
+        dec sam_vx
 .minspd:
 ; set flipx flag
 	lda OAM_RAM+2
@@ -224,14 +215,14 @@ UpdateKris: subroutine
         sta OAM_RAM+10
 	jmp .enddir
 .right:
-	lda kr_vx
+	lda sam_vx
         cmp #12
         beq .maxspd
         ; bonus turnaround
-        inc kr_vx
+        inc sam_vx
         cmp #-1
         bpl .maxspd
-        inc kr_vx
+        inc sam_vx
 .maxspd:
 ; clear flipx flag
 	lda OAM_RAM+2
@@ -242,19 +233,19 @@ UpdateKris: subroutine
 	jmp .enddir
         
 .friction
-	lda kr_vx
+	lda sam_vx
         cmp #0
         bmi .incvel
         beq .enddir
 .decvel
 	clc
         sbc #0
-	sta kr_vx
+	sta sam_vx
 	jmp .enddir
 .incvel
 	sec
         adc #1
-	sta kr_vx
+	sta sam_vx
 .enddir
 
 
@@ -267,18 +258,18 @@ UpdateKris: subroutine
         
         
 
-; update kris x pos  
-	lda kr_vx
+; update sam x pos  
+	lda sam_vx
         _ASR		; vx /= 4
         _ASR
         clc
-        adc kr_x
+        adc sam_x
         adc world_inc
         cmp #10
         bcs .not_at_left
         lda #10
 .not_at_left
-        sta kr_x
+        sta sam_x
         
         sta OAM_RAM+3
         sta OAM_RAM+7
@@ -313,42 +304,30 @@ UpdateMotes: subroutine
 
 
 LoadMap: subroutine
-	PPU_SETADDR $2320
+map_rows = 4
+attr_table_len = $40
+	; bg 0
+	PPU_SETADDR $2300
         ldx #0
 .loop
 	lda land_ground,x
         sta PPU_DATA
         inx
-        cpx #$20
+        cpx #$20 * map_rows + attr_table_len
         bne .loop
         
-	PPU_SETADDR $2340
+        ; bg 1
+	PPU_SETADDR $2700
         ldx #0
 .loop2
-	lda land_ground+$20,x
+	lda land_ground,x
         sta PPU_DATA
         inx
-        cpx #$20
+        cpx #$20 * map_rows + attr_table_len
         bne .loop2
         
-	PPU_SETADDR $2360
-        ldx #0
-.loop3
-	lda land_ground+$40,x
-        sta PPU_DATA
-        inx
-        cpx #$20
-        bne .loop3
+        rts
         
-        ; attribute table
-        PPU_SETADDR $23c0
-        lda #0
-        ldx #$40
-.loopattr
-	sta PPU_DATA
-        dex
-        bne .loopattr
-	rts
 
 
 
@@ -385,12 +364,13 @@ Palette:
         hex 00000000	;background 2
         hex 0000002d	;background 3
         hex 00000f0f	;sprite 0
-        hex 08171725	;sprite 1 -- kris
+        hex 08171725	;sprite 1 -- sam
         hex 142b3b25	;sprite 2
         hex 1c2c3c25	;sprite 3
         
         
  	include "land.asm"
+ 	include "bg.asm"
 
 ;;;;; CPU VECTORS
 

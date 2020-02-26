@@ -4,8 +4,10 @@
 
 
 
-land_ground:	
-        .byte $ec,$ed,$ee,$ef,$ec,$ed,$ec,$ed,$ee,$ef,$ee,$ef,$ec,$ee,$ef,$ed
+land_ground:
+	.byte $df,$ce,$df,$de,$cf,$cf,$de,$cf,$df,$cf,$ce,$cf,$ce,$df,$de,$ce
+	.byte $cf,$cf,$de,$cf,$df,$df,$cf,$de,$ce,$df,$df,$de,$cf,$ce,$de,$df
+	.byte $ec,$ed,$ee,$ef,$ec,$ed,$ec,$ed,$ee,$ef,$ee,$ef,$ec,$ee,$ef,$ed
 	.byte $ec,$ed,$ee,$ef,$ed,$ee,$ec,$ed,$ee,$ef,$ee,$ef,$ed,$ed,$ee,$ef
 	.byte $fc,$fd,$fe,$ff,$fc,$fd,$fc,$fd,$fe,$ff,$fe,$ff,$fc,$fe,$ff,$fd
 	.byte $fc,$fd,$fe,$ff,$fd,$fe,$fc,$fd,$fe,$ff,$fe,$ff,$fd,$fd,$fe,$ff
