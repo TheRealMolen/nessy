@@ -45,12 +45,13 @@ state	byte
 timr	byte
 pad0	byte
 
-sam_x	byte
+sam_x	word
 sam_y	byte
 sam_vx	byte
 sam_oam_attrs	byte
 sam_fr	byte
 sam_tmr	byte
+
 
 world_inc byte
 scrollx word
@@ -453,8 +454,6 @@ Rand: subroutine
         
 ;;;;; read the next title letter - and potentially mess with it
 PickTitleLetter: subroutine
-        lda geoff_text,y	; read next char
-        beq .done
 	cpy title_skip		; skip this char if it's the skippable one this frame
 	beq .skip_letter
         jsr Rand
@@ -579,8 +578,11 @@ Palette:
         hex 1c2c3c	;sprite 3
         
         
-        org $8600
+        align $100
 	include "rand.asm"
+        
+        include "pickups.asm"
+
         
  	include "land.asm"
 
