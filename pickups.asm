@@ -1,5 +1,7 @@
 
 num_pickups = 8
+pickup_static_tile = $90
+pickup_carry_tile = $a0
 
 ;; pickup positions, div32
 pu_pos_32:
