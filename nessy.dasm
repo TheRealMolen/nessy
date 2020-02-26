@@ -313,9 +313,17 @@ RenderTitle: subroutine
 	lda #geoff_text_y	; y pos is constant
         sta OAM_RAM,x
         inx
-        lda geoff_text,y	; read next char
-        beq .end_geoff		; if it's the end, bail (and roll back x!)
+        
+        ;; choose a letter and show it
+        jsr PickTitleLetter
+        cmp #0
+        beq .end_geoff	; if it's the end, bail (and roll back x!)
+        cmp #$ff
+        bne .unskip_geoff
+        lda #6
+.unskip_geoff        
         sta OAM_RAM,x
+        
         inx
         lda #0			; no attrs
         sta OAM_RAM,x
@@ -336,14 +344,14 @@ RenderTitle: subroutine
         sta r0
         ldy #0
 .loop2
-	cpy title_skip		; skip this char if it's the skippable one this frame
-        beq .skip_letter
-        
 	lda #stranding_text_y	; y pos is constant
         sta OAM_RAM,x
         inx
-        lda stranding_text,y	; read next char
+        jsr PickTitleLetter
+        cmp #0
         beq .end_stranding	; if it's the end, bail (and roll back x!)
+        cmp #$ff
+        beq .skip_letter
         sta OAM_RAM,x
         inx
         lda #$0			; no attrs, pal s0
@@ -359,6 +367,7 @@ RenderTitle: subroutine
         jmp .loop2
         
 .skip_letter
+	dex
         lda r0			; bring x pos from r0
         clc			; advance x pos
         adc #$10
@@ -393,6 +402,31 @@ stranding_letters = 9
 stranding_text:
 	.byte "STRANDING"
         .byte 0
+        
+        
+Rand: subroutine
+	rts
+        
+;;;;; read the next title letter - and potentially mess with it
+PickTitleLetter: subroutine
+        lda stranding_text,y	; read next char
+	cpy title_skip		; skip this char if it's the skippable one this frame
+	beq .skip_letter
+        adc title_skip
+        jsr Rand
+        cmp #215
+        bmi .random_letter
+        lda stranding_text,y	; read next char
+        rts
+.random_letter
+	clc	; sub 1 from acc
+        sbc #0
+        and #7
+        rts
+.skip_letter
+	lda #$ff
+	rts
+        
         
         
         
