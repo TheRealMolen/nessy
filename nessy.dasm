@@ -172,19 +172,7 @@ common_update:
         jmp .scroll_loop
 .no_scroll
         
-        
-     ;   dec world_inc
-     ;   inc scrollx
-     ;   bne endupdate_posx
-	;; we've just advanced a whole double-bg
-     ;   inc scrollx+1
-     ;   lda #1
-     ;   sta flipbg	; we need to handle bg flipping logic
-        
-        lda timr
-        bne .no_motes
         jsr UpdateMotes
-.no_motes
         
 ; build oam buffer
 	ldx #0
@@ -211,26 +199,6 @@ no_render_title:
 ;;;;; end of frame
 	;; TODO: move to NMI handler!
 	jsr WaitSync
-        
-; update posx
-	;lda #0
-	;sta world_inc
-        
-	inc timr
-        lda #3
-        cmp timr
-        bne endupdate_posx
-        lda #0
-        sta timr
-        
-     ;   dec world_inc
-     ;   inc scrollx
-     ;   bne endupdate_posx
-	;; we've just advanced a whole double-bg
-     ;   inc scrollx+1
-     ;   lda #1
-     ;   sta flipbg	; we need to handle bg flipping logic
-endupdate_posx:
 
 ; handle any bg updates
 	lda flipbg
@@ -510,145 +478,19 @@ RenderPickups: subroutine
 	rts
         
         
-;;;; starting oam offset goes in X (and new one is returned in x)
-RenderTitle: subroutine
-	lda rand
-        pha
-        
-        ;; draw GEOFF
-        lda #geoff_text_x	; x pos in r0
-        sta r0
-        ldy #0
-.loop1
-	cpy #5
-        beq .end_geoff	; if it's the end, bail (and roll back x!)
-        
-	lda #geoff_text_y	; y pos is constant
-        sta OAM_RAM,x
-        inx
-        
-        ;; choose a letter and show it
-        jsr PickTitleLetter
-        cmp #$ff
-        bne .unskip_geoff
-        lda #6
-.unskip_geoff        
-        sta OAM_RAM,x
-        
-        inx
-        lda #0			; no attrs
-        sta OAM_RAM,x
-        inx
-        lda r0			; bring x pos from r0
-        sta OAM_RAM,x
-        inx
-        clc			; advance x pos
-        adc #$10
-        sta r0
-        iny
-        jmp .loop1
-.end_geoff
-        
-        ; draw STRANDING
-        lda #stranding_text_x	; x pos in r0
-        sta r0
-.loop2
-	cpy #15
-        beq .end_stranding	; if it's the end, bail (and roll back x!)
-        
-	lda #stranding_text_y	; y pos is constant
-        sta OAM_RAM,x
-        inx
-        jsr PickTitleLetter
-        cmp #0
-        cmp #$ff
-        beq .skip_letter
-        sta OAM_RAM,x
-        inx
-        lda #$0			; no attrs, pal s0
-        sta OAM_RAM,x
-        inx
-        lda r0			; bring x pos from r0
-        sta OAM_RAM,x
-        inx
-        clc			; advance x pos
-        adc #$10
-        sta r0
-        iny
-        jmp .loop2
-        
-.skip_letter
-	dex
-        lda r0			; bring x pos from r0
-        clc			; advance x pos
-        adc #$10
-        sta r0
-        iny
-        jmp .loop2
-	
-.end_stranding
-        
-        ;; update the letter of STRANDING that we're skipping this frame
-        inc title_skip
-        lda title_skip
-        cmp #5 + stranding_letters
-        bne .doneskip
-        lda #5
-        sta title_skip
-.doneskip
-	pla
-        sta rand
-        rts
-        
-
-geoff_text_x = $58
-geoff_text_y = $50
-geoff_text:
-	.byte "GEOFF"
-stranding_text_x = $38
-stranding_text_y = $63
-stranding_letters = 9
-stranding_text:
-	.byte "STRANDING"
-        .byte 0
-        
-        
-        
-Rand: subroutine
-	txa
-        pha
-	lda rand
-        tax
-        lda rand_table,x
-        sta rand
-        pla
-        tax
-        lda rand
-	rts
-        
-;;;;; read the next title letter - and potentially mess with it
-PickTitleLetter: subroutine
-	cpy title_skip		; skip this char if it's the skippable one this frame
-	beq .skip_letter
-        jsr Rand
-        cmp title_fade
-        bcc .random_letter
-        lda geoff_text,y	; read next char
-.done
-        rts
-.random_letter
-	clc	; sub 1 from acc
-        sbc #0
-        and #7
-        rts
-.skip_letter
-	lda #$ff
-	rts
-        
-        
         
         
 UpdateMotes: subroutine
+; update animation timer
+	inc timr
+        lda #3
+        cmp timr
+        bne .done_timr
+        lda #0
+        sta timr
+.done_timr
+	bne .done
+
 	ldx #$20 * 4
         ldy #$10
 .loop:
@@ -665,6 +507,7 @@ UpdateMotes: subroutine
         inx
         dey
 	bne .loop	; loop
+.done
         rts		; return to caller
 
 
@@ -719,7 +562,7 @@ SetPalette: subroutine
         cpy #32		; is Y equal to 32?
 	bne .loop	; not yet, loop
         rts		; return to caller
-
+       
 
 	include "messages.dasm"
 
@@ -727,6 +570,19 @@ SetPalette: subroutine
 ;;;;; COMMON SUBROUTINES
 
 	include "nesppu.dasm"
+        
+       
+Rand: subroutine
+	txa
+        pha
+	lda rand
+        tax
+        lda rand_table,x
+        sta rand
+        pla
+        tax
+        lda rand
+	rts
 
 ;;;;; INTERRUPT HANDLERS
 
