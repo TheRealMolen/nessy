@@ -1,21 +1,32 @@
 
 
+;; set ppu addr, using r0 to select the page
+	MAC PPU_SETADDR_r0
+        lda r0
+        sta PPU_ADDR
+        lda #{1}	; lower byte
+        sta PPU_ADDR
+        ENDM
+
+
 
 ;; blat delivery instructions into BG ram
+; Acc should be $20 or $2C depending on the bg to write to
 PrintDeliveryRequest: subroutine
+	sta r0
 ;; copy penny's picture very manually
-	PPU_SETADDR $2C40
+        PPU_SETADDR_r0 #$40
         lda #$ae
 	sta PPU_DATA
         lda #$af
 	sta PPU_DATA
-	PPU_SETADDR $2C60
+        PPU_SETADDR_r0 #$60
         lda #$be
 	sta PPU_DATA
         lda #$bf
 	sta PPU_DATA
 	
-	PPU_SETADDR $2C63
+        PPU_SETADDR_r0 #$63
 	ldy #0
 .loop1:
 	lda delivery_msg,y
@@ -24,7 +35,7 @@ PrintDeliveryRequest: subroutine
         iny
 	bne .loop1
 .eol1
-	PPU_SETADDR $2Ca0
+        PPU_SETADDR_r0 #$a0
         iny
 .loop2
 	lda delivery_msg,y
@@ -38,4 +49,26 @@ PrintDeliveryRequest: subroutine
 delivery_msg:
 	.byte "PENNY L. ARABIATA",0,$22
         .byte "I need connection, asap!",$22,0
+        
+
+;; clear the delivery instructions
+; Acc should be $20 or $2C depending on the bg to write to
+ClearDeliveryRequest: subroutine
+	sta r0
+;; clear top half of pic
+        PPU_SETADDR_r0 #$40
+        lda #0
+	sta PPU_DATA
+	sta PPU_DATA
+        PPU_SETADDR_r0 #$60
+        lda #0
+        ldx #$60
+.loop:
+	sta PPU_DATA
+        dex
+        bne .loop
+	rts
+        
+        
+        
 

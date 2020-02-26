@@ -80,6 +80,8 @@ Start:
         
         ; load map
         jsr LoadMap
+        ; print the delivery request into bg2
+        lda #$2C
         jsr PrintDeliveryRequest
         
                 
@@ -133,22 +135,6 @@ Start:
 ;;;;; start of frame
 
 Tick:
-; update posx
-	lda #0
-	sta world_inc
-	inc timr
-        lda #3
-        cmp timr
-        bne endupdate_posx
-        dec world_inc
-        jsr UpdateMotes
-        inc scrollx
-        bne .scrollx_done
-        inc scrollx+1
-.scrollx_done
-        lda #0
-        sta timr
-endupdate_posx:
 	lda state
         beq update_title
         jmp common_update
@@ -189,6 +175,40 @@ no_render_title:
 ;;;;; end of frame
 	jsr WaitSync
         
+; update posx
+	lda #0
+	sta world_inc
+	inc timr
+        lda #3
+        cmp timr
+        bne endupdate_posx
+        dec world_inc
+        jsr UpdateMotes
+        inc scrollx
+        bne .scrollx_done
+;; we've just advanced a whole double-bg
+        inc scrollx+1
+        lda scrollx+1
+        cmp #2
+        beq .move_req_msg
+        cmp #3
+        beq .wipe_req_msg
+        jmp .scrollx_done
+.move_req_msg
+	lda #$2c
+        jsr ClearDeliveryRequest
+        lda #20
+        jsr PrintDeliveryRequest
+        jmp .scrollx_done
+.wipe_req_msg
+	lda #$20
+        jsr ClearDeliveryRequest
+.scrollx_done
+        lda #0
+        sta timr
+endupdate_posx:
+        
+        
 ; copy oam
 	lda #0
         sta OAM_ADDR
@@ -200,6 +220,10 @@ no_render_title:
         sta PPU_SCROLL
         lda #0
         sta PPU_SCROLL
+	lda scrollx+1	; load high byte
+        and #1		; select its low bit
+	ora #CTRL_NMI	; set rest of bits
+        sta PPU_CTRL
         
 ; activate PPU graphics
         jsr ReadJoypad0
