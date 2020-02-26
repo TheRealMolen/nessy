@@ -51,6 +51,8 @@ sam_tmr	byte
 world_inc byte
 scrollx word
 
+title_skip byte
+
 
 ;;;;; NES CARTRIDGE HEADER
 
@@ -73,44 +75,6 @@ Start:
         
                 
 ;;;; init sprites
-	; many stars
-	lda #$18   ; star!
-        ldx #$20 * 4
-        ldy #0
-init_sprite_loop:
-	inx
-	sta OAM_RAM,x
-        inx
-        inx
-        inx
-        iny
-        cpy #$10
-        bne init_sprite_loop
-        
-        ;; init sam (palette 1)
-        ;InitSprite $0, $78, $ae, $b0
-        ;InitSprite $1, $78, $b6, $c0
-        ;InitSprite $2, $78, $be, $d0
-        ;lda #$01
-        ;sta OAM_RAM+2
-        ;sta OAM_RAM+6
-        ;sta OAM_RAM+10
-        
-        ;; init title
-        InitSprite $04, $58, $50, $47	; G
-        InitSprite $05, $68, $50, $45	; E
-        InitSprite $06, $78, $50, $4f	; O
-        InitSprite $07, $88, $50, $46	; F
-        InitSprite $08, $98, $50, $46	; F
-        InitSprite $09, $38, $63, $53	; S
-        InitSprite $0a, $48, $63, $54	; T
-        InitSprite $0b, $58, $63, $52	; R
-        InitSprite $0c, $68, $63, $41	; A
-        InitSprite $0d, $78, $63, $4e	; N
-        InitSprite $0e, $89, $63, $44	; D
-        InitSprite $0f, $98, $63, $49	; I
-        InitSprite $10, $a7, $63, $4e	; N
-        InitSprite $11, $b8, $63, $47	; G
         
         ;; init motes
         InitSprite $20, $33, $10, $16
@@ -132,18 +96,24 @@ init_sprite_loop:
         ; flip some
         lda #OAM_FLIPX
         sta OAM_RAM+2+$20*4
-        sta OAM_RAM+2+$21*4
+        sta OAM_RAM+2+$22*4
         sta OAM_RAM+2+$23*4
-        sta OAM_RAM+2+$25*4
-        sta OAM_RAM+2+$27*4
+        sta OAM_RAM+2+$24*4
+        sta OAM_RAM+2+$28*4
         sta OAM_RAM+2+$2a*4
-        sta OAM_RAM+2+$2f*4
+        sta OAM_RAM+2+$2e*4
         
 ;;;;; init objects
 	lda #$78
         sta sam_x
-        lda #$be
+        lda #$b6
         sta sam_y
+        
+;;;;; setup ppu
+        lda #$18
+        sta PPU_MASK 	; enable rendering
+        lda #CTRL_NMI
+        sta PPU_CTRL	; enable NMI
         
 
 ;;;;; start of frame
@@ -167,35 +137,29 @@ Tick:
 endupdate_posx:
 
 	jsr UpdateSam
-
         
-;;;;; end of frame
-
 ; build oam buffer
 	ldx #0
         jsr RenderSam
-        
+        jsr RenderTitle
 
-; reset PPU address and scroll registers
-        lda #0
-        sta PPU_ADDR
-        sta PPU_ADDR	; PPU addr = $0000
-        lda scrollx
-        sta PPU_SCROLL
-        lda #0
-        sta PPU_SCROLL  ; PPU scroll = $0000
-        lda #CTRL_NMI
-        sta PPU_CTRL	; enable NMI
-        jsr WaitSync
+
+;;;;; end of frame
+	jsr WaitSync
         
 ; copy oam
 	lda #0
         sta OAM_ADDR
         lda #2
         sta OAM_DMA
+        
+; setup scroll
+        lda scrollx
+        sta PPU_SCROLL
+        lda #0
+        sta PPU_SCROLL
+        
 ; activate PPU graphics
-        lda #$1e
-        sta PPU_MASK 	; enable rendering
         jsr ReadJoypad0
         sta pad0
         jmp Tick
@@ -204,7 +168,6 @@ endupdate_posx:
 
 
 UpdateSam: subroutine
-
 ;;; update facing
 	lda pad0
         and #$2
@@ -226,7 +189,7 @@ UpdateSam: subroutine
 	lda sam_oam_attrs
 	ora #$40
         sta sam_oam_attrs
-	jmp .enddir
+	jmp .updateanim
 .right:
 	lda sam_vx
         cmp #12
@@ -241,50 +204,51 @@ UpdateSam: subroutine
 	lda sam_oam_attrs
         and #$bf
         sta sam_oam_attrs
-	jmp .enddir
+	jmp .updateanim
         
 .friction
 	lda sam_vx
         cmp #0
         bmi .incvel
-        beq .enddir
+        beq .endfric
 .decvel
 	clc
         sbc #0
 	sta sam_vx
-	jmp .enddir
+	jmp .endfric
 .incvel
 	sec
         adc #1
 	sta sam_vx
-.enddir
-
-
-    ; lda i
-    ; cmp j
-    ; bmi .i_lt_j
-    ; bpl .i_ge_j
-    ; bcs .i_le_j
-    ; bcc .i_gt_j
-        
+.endfric
+	lda sam_vx
+        bne .updateanim
+        sta sam_fr	; if sam isn't moving, his legs should be still
+        sta sam_tmr	; ...and his anim timer should reset so there's instant feedback on starting to move
+        jmp .postanim
+.updateanim
+        dec sam_tmr
+        bpl .postanim
+        lda sam_fr	; update animation frame
+    	eor #1
+        sta sam_fr
+        lda #14		; reset timer
+        sta sam_tmr
+.postanim
         
 
 ; update sam x pos  
 	lda sam_vx
         _ASR		; vx /= 4
         _ASR
-        clc
+        clc		; add on sam's x pos
         adc sam_x
-        adc world_inc
+        adc world_inc	; plus the world scroll pos
         cmp #10
         bcs .not_at_left
         lda #10
 .not_at_left
         sta sam_x
-        
-        sta OAM_RAM+3
-        sta OAM_RAM+7
-        sta OAM_RAM+11
 
 	rts
         
@@ -308,7 +272,7 @@ RenderSam: subroutine
         sta r1		; tile * row in r1
         ldx #0		; sprites 0, 1, 2
         ldy #3		; sam is 3 tall
-.samloop
+.loop
         lda sam_y	; set sprite y
         sta OAM_RAM,x
         adc #8
@@ -332,17 +296,109 @@ RenderSam: subroutine
         sta r1
         
         dey		; loop
-        bne .samloop
+        bne .loop
         pla		; pull the tile off the stack
         pla
         sta sam_y
         rts
         
         
+;;;; starting oam offset goes in X (and new one is returned in x)
+RenderTitle: subroutine
+        ;; draw GEOFF
+        lda #geoff_text_x	; x pos in r0
+        sta r0
+        ldy #0
+.loop1
+	lda #geoff_text_y	; y pos is constant
+        sta OAM_RAM,x
+        inx
+        lda geoff_text,y	; read next char
+        beq .end_geoff		; if it's the end, bail (and roll back x!)
+        sta OAM_RAM,x
+        inx
+        lda #0			; no attrs
+        sta OAM_RAM,x
+        inx
+        lda r0			; bring x pos from r0
+        sta OAM_RAM,x
+        inx
+        clc			; advance x pos
+        adc #$10
+        sta r0
+        iny
+        jmp .loop1
+.end_geoff
+	dex	; need to back up one position
+        
+        ; draw STRANDING
+        lda #stranding_text_x	; x pos in r0
+        sta r0
+        ldy #0
+.loop2
+	cpy title_skip		; skip this char if it's the skippable one this frame
+        beq .skip_letter
+        
+	lda #stranding_text_y	; y pos is constant
+        sta OAM_RAM,x
+        inx
+        lda stranding_text,y	; read next char
+        beq .end_stranding	; if it's the end, bail (and roll back x!)
+        sta OAM_RAM,x
+        inx
+        lda #$0			; no attrs, pal s0
+        sta OAM_RAM,x
+        inx
+        lda r0			; bring x pos from r0
+        sta OAM_RAM,x
+        inx
+        clc			; advance x pos
+        adc #$10
+        sta r0
+        iny
+        jmp .loop2
+        
+.skip_letter
+        lda r0			; bring x pos from r0
+        clc			; advance x pos
+        adc #$10
+        sta r0
+        iny
+        jmp .loop2
+	
+.end_stranding
+	dex	; need to back up one position
+        lda #0			; no attrs
+        sta OAM_RAM,x
+        
+        ;; update the letter of STRANDING that we're skipping this frame
+        inc title_skip
+        lda title_skip
+        cmp #stranding_letters
+        bne .doneskip
+        lda #0
+        sta title_skip
+.doneskip
+        rts
+        
+
+geoff_text_x = $58
+geoff_text_y = $50
+geoff_text:
+	.byte "GEOFF"
+        .byte 0
+stranding_text_x = $38
+stranding_text_y = $63
+stranding_letters = 9
+stranding_text:
+	.byte "STRANDING"
+        .byte 0
+        
         
         
 UpdateMotes: subroutine
 	ldx #$20 * 4
+        ldy #$10
 .loop:
 	dec OAM_RAM,x	; dec spr.y
         lda world_inc
@@ -355,7 +411,7 @@ UpdateMotes: subroutine
         inx
         inx
         inx
-	cpx #$40 + (#$21 * 4)
+        dey
 	bne .loop	; loop
         rts		; return to caller
 
@@ -364,27 +420,35 @@ UpdateMotes: subroutine
 
 
 LoadMap: subroutine
-map_rows = 4
-attr_table_len = $40
 	; bg 0
-	PPU_SETADDR $2300
+	PPU_SETADDR $22c0
         ldx #0
 .loop
 	lda land_ground,x
         sta PPU_DATA
         inx
-        cpx #$20 * map_rows + attr_table_len
         bne .loop
+.loop_attr
+	lda land_attrs,x
+        sta PPU_DATA
+        inx
+        cpx #$40
+        bne .loop_attr
         
         ; bg 1
-	PPU_SETADDR $2700
+	PPU_SETADDR $26c0
         ldx #0
 .loop2
 	lda land_ground,x
         sta PPU_DATA
         inx
-        cpx #$20 * map_rows + attr_table_len
         bne .loop2
+.loop2_attr
+	lda land_attrs,x
+        sta PPU_DATA
+        inx
+        cpx #$40
+        bne .loop2_attr
         
         rts
         
@@ -418,19 +482,25 @@ NMIHandler:
 ;;;;; CONSTANT DATA
 
 Palette:
-	hex 01		;screen color
-	hex 09081d3d	;background 0 - foreground
-        hex 25252525	;background 1 - background
-        hex 00000000	;background 2
-        hex 0000002d	;background 3
-        hex 00000f0f	;sprite 0
-        hex 08171725	;sprite 1 -- sam
-        hex 142b3b25	;sprite 2
-        hex 1c2c3c25	;sprite 3
+	hex 2d		;screen color
+	hex 09081d	;background 0 - foreground
+        hex 25		; bg1 unused
+        hex 1d181b	;background 1 - background
+        hex 25		; bg2 unused
+        hex 000000	;background 2
+        hex 25		; bg3 unused
+        hex 000000	;background 3
+        hex 3d		;screen colour MIRROR
+        hex 001d0f	;sprite 0
+        hex 25		; bg1 unused MIRROR
+        hex 0d1727	;sprite 1 -- sam
+        hex 25		; bg2 unused MIRROR
+        hex 142b3b	;sprite 2
+        hex 25		; bg3 unused MIRROR
+        hex 1c2c3c	;sprite 3
         
         
  	include "land.asm"
- 	include "bg.asm"
 
 ;;;;; CPU VECTORS
 
