@@ -40,6 +40,9 @@ pad0	byte
 kr_x	byte
 kr_vx	byte
 
+world_inc byte
+scrollx word
+
 
 ;;;;; NES CARTRIDGE HEADER
 
@@ -96,9 +99,9 @@ init_sprite_loop:
         InitSprite $0b, $58, $63, $52	; R
         InitSprite $0c, $68, $63, $41	; A
         InitSprite $0d, $78, $63, $4e	; N
-        InitSprite $0e, $88, $63, $44	; D
+        InitSprite $0e, $89, $63, $44	; D
         InitSprite $0f, $98, $63, $49	; I
-        InitSprite $10, $a8, $63, $4e	; N
+        InitSprite $10, $a7, $63, $4e	; N
         InitSprite $11, $b8, $63, $47	; G
         
         ;; init motes
@@ -137,11 +140,18 @@ init_sprite_loop:
 
 Tick:
 ; update posx
+	lda #0
+	sta world_inc
 	inc timr
         lda #3
         cmp timr
         bne endupdate_posx
+        dec world_inc
         jsr UpdateMotes
+        inc scrollx
+        bne .scrollx_done
+        inc scrollx+1
+.scrollx_done
         lda #0
         sta timr
 endupdate_posx:
@@ -164,7 +174,9 @@ endupdate_posx:
         lda #0
         sta PPU_ADDR
         sta PPU_ADDR	; PPU addr = $0000
+        lda scrollx
         sta PPU_SCROLL
+        lda #0
         sta PPU_SCROLL  ; PPU scroll = $0000
         lda #CTRL_NMI
         sta PPU_CTRL	; enable NMI
@@ -197,7 +209,7 @@ UpdateKris: subroutine
         jmp .friction
 .left:
 	lda kr_vx
-        cmp #-16
+        cmp #-12
         beq .minspd
         dec kr_vx
         cmp #1
@@ -213,7 +225,7 @@ UpdateKris: subroutine
 	jmp .enddir
 .right:
 	lda kr_vx
-        cmp #16
+        cmp #12
         beq .maxspd
         ; bonus turnaround
         inc kr_vx
@@ -252,29 +264,6 @@ UpdateKris: subroutine
     ; bpl .i_ge_j
     ; bcs .i_le_j
     ; bcc .i_gt_j
-
-; clamp kris to screen
-	lda kr_vx
-        lda #$8
-        cmp #0
-        bmi .clampleft
-        beq .doneclampx
-.clampright
-	lda #$f0
-        cmp kr_x
-        bcs .doneclampx
-        lda #0
-        sta kr_vx
-	jmp .doneclampx
-.clampleft
-	lda kr_x
-        cmp #$6
-        bcs .doneclampx
-        lda #0
-        sta kr_vx
-	jmp .doneclampx
-.doneclampx
-        
         
         
 
@@ -284,6 +273,11 @@ UpdateKris: subroutine
         _ASR
         clc
         adc kr_x
+        adc world_inc
+        cmp #10
+        bcs .not_at_left
+        lda #10
+.not_at_left
         sta kr_x
         
         sta OAM_RAM+3
@@ -300,6 +294,10 @@ UpdateMotes: subroutine
 	ldx #$20 * 4
 .loop:
 	dec OAM_RAM,x	; dec spr.y
+        lda world_inc
+        clc
+        adc OAM_RAM+3,x
+        sta OAM_RAM+3,x
 
 	; move to next sprite
         inx
@@ -382,11 +380,11 @@ NMIHandler:
 
 Palette:
 	hex 01		;screen color
-	hex 09082d3d	;background 0 (title text)
-        hex 00000000	;background 1
+	hex 09081d3d	;background 0 - foreground
+        hex 25252525	;background 1 - background
         hex 00000000	;background 2
         hex 0000002d	;background 3
-        hex 00010f0f	;sprite 0
+        hex 00000f0f	;sprite 0
         hex 08171725	;sprite 1 -- kris
         hex 142b3b25	;sprite 2
         hex 1c2c3c25	;sprite 3
