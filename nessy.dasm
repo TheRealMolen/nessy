@@ -264,29 +264,6 @@ UpdateKris: subroutine
     ; bpl .i_ge_j
     ; bcs .i_le_j
     ; bcc .i_gt_j
-
-; clamp kris to screen
-	lda kr_vx
-        lda #$8
-        cmp #0
-        bmi .clampleft
-        beq .doneclampx
-.clampright
-	lda #$f0
-        cmp kr_x
-        bcs .doneclampx
-        lda #0
-        sta kr_vx
-	jmp .doneclampx
-.clampleft
-	lda kr_x
-        cmp #$6
-        bcs .doneclampx
-        lda #0
-        sta kr_vx
-	jmp .doneclampx
-.doneclampx
-        
         
         
 
@@ -297,6 +274,10 @@ UpdateKris: subroutine
         clc
         adc kr_x
         adc world_inc
+        cmp #10
+        bcs .not_at_left
+        lda #10
+.not_at_left
         sta kr_x
         
         sta OAM_RAM+3
