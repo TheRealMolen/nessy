@@ -49,6 +49,7 @@ pad0	byte
 sam_x	word
 sam_y	byte
 sam_vx	byte
+sam_maxspd byte
 sam_oam_attrs	byte
 sam_fr	byte
 sam_tmr	byte
@@ -249,6 +250,21 @@ no_render_title:
 
 
 UpdateSam: subroutine
+;; update max speed
+        ldx #0
+        lda #0
+        clc
+.pu_loop
+	;; NB if the pu state is ever more complex than 1/0, this is broked
+	adc pu_state,x
+        inx
+        cpx #num_pickups
+        bne .pu_loop
+        ; now lookup our max speed
+        tax
+        lda pu_maxspeed,x
+        sta sam_maxspd
+
 ;;; update facing
 	lda pad0
         and #$2
