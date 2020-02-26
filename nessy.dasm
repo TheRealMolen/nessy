@@ -141,7 +141,7 @@ Tick:
 
 update_title:
 	lda scrollx
-        and #$3
+        and #$1
         bne common_update
         inc title_fade
         bne common_update
@@ -149,6 +149,11 @@ update_title:
 
 common_update:
 	jsr UpdateSam
+        
+        lda timr
+        bne .no_motes
+        jsr UpdateMotes
+.no_motes
         
 ; build oam buffer
 	ldx #0
@@ -183,7 +188,6 @@ no_render_title:
         cmp timr
         bne endupdate_posx
         dec world_inc
-        jsr UpdateMotes
         inc scrollx
         bne .scrollx_done
 ;; we've just advanced a whole double-bg
@@ -675,7 +679,7 @@ Palette:
         hex 25		; bg2 unused
         hex 07170c	;background 2 - penny
         hex 25		; bg3 unused
-        hex 001d0f	;background 3 - text
+        hex 311d0f	;background 3 - text
         hex 3d		;screen colour MIRROR
         hex 001d0f	;sprite 0 -- motes
         hex 25		; bg1 unused MIRROR
