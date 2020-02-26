@@ -134,12 +134,12 @@ init_sprite_loop:
         ; flip some
         lda #OAM_FLIPX
         sta OAM_RAM+2+$20*4
-        sta OAM_RAM+2+$21*4
+        sta OAM_RAM+2+$22*4
         sta OAM_RAM+2+$23*4
-        sta OAM_RAM+2+$25*4
-        sta OAM_RAM+2+$27*4
+        sta OAM_RAM+2+$24*4
+        sta OAM_RAM+2+$28*4
         sta OAM_RAM+2+$2a*4
-        sta OAM_RAM+2+$2f*4
+        sta OAM_RAM+2+$2e*4
         
 ;;;;; init objects
 	lda #$78
@@ -228,7 +228,7 @@ UpdateSam: subroutine
 	lda sam_oam_attrs
 	ora #$40
         sta sam_oam_attrs
-	jmp .enddir
+	jmp .updateanim
 .right:
 	lda sam_vx
         cmp #12
@@ -243,32 +243,37 @@ UpdateSam: subroutine
 	lda sam_oam_attrs
         and #$bf
         sta sam_oam_attrs
-	jmp .enddir
+	jmp .updateanim
         
 .friction
 	lda sam_vx
         cmp #0
         bmi .incvel
-        beq .enddir
+        beq .endfric
 .decvel
 	clc
         sbc #0
 	sta sam_vx
-	jmp .enddir
+	jmp .endfric
 .incvel
 	sec
         adc #1
 	sta sam_vx
-.enddir
-
-
-    ; lda i
-    ; cmp j
-    ; bmi .i_lt_j
-    ; bpl .i_ge_j
-    ; bcs .i_le_j
-    ; bcc .i_gt_j
-        
+.endfric
+	lda sam_vx
+        bne .updateanim
+        sta sam_fr	; if sam isn't moving, his legs should be still
+        sta sam_tmr
+        jmp .postanim
+.updateanim
+        dec sam_tmr
+        bpl .postanim
+        lda sam_fr
+    	eor #1
+        sta sam_fr
+        lda #14
+        sta sam_tmr
+.postanim
         
 
 ; update sam x pos  
@@ -283,10 +288,6 @@ UpdateSam: subroutine
         lda #10
 .not_at_left
         sta sam_x
-        
-        sta OAM_RAM+3
-        sta OAM_RAM+7
-        sta OAM_RAM+11
 
 	rts
         
@@ -428,7 +429,7 @@ Palette:
         hex 000000	;background 2
         hex 25		; bg3 unused
         hex 000000	;background 3
-        hex 2d		;screen colour MIRROR
+        hex 3d		;screen colour MIRROR
         hex 001d0f	;sprite 0
         hex 25		; bg1 unused MIRROR
         hex 0d1727	;sprite 1 -- sam
