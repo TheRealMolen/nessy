@@ -34,11 +34,18 @@ OAM_FLIPX = $40
 	seg.u ZEROPAGE
 	org $0
         
+; "registers"
+r0	byte
+
 timr	byte
 pad0	byte
 
 sam_x	byte
+sam_y	byte
 sam_vx	byte
+sam_oam_attrs	byte
+sam_fr	byte
+sam_tmr	byte
 
 world_inc byte
 scrollx word
@@ -80,13 +87,13 @@ init_sprite_loop:
         bne init_sprite_loop
         
         ;; init sam (palette 1)
-        InitSprite $0, $78, $ae, $b0
-        InitSprite $1, $78, $b6, $c0
-        InitSprite $2, $78, $be, $d0
-        lda #$01
-        sta OAM_RAM+2
-        sta OAM_RAM+6
-        sta OAM_RAM+10
+        ;InitSprite $0, $78, $ae, $b0
+        ;InitSprite $1, $78, $b6, $c0
+        ;InitSprite $2, $78, $be, $d0
+        ;lda #$01
+        ;sta OAM_RAM+2
+        ;sta OAM_RAM+6
+        ;sta OAM_RAM+10
         
         ;; init title
         InitSprite $04, $58, $50, $47	; G
@@ -134,6 +141,8 @@ init_sprite_loop:
 ;;;;; init objects
 	lda #$78
         sta sam_x
+        lda #$be
+        sta sam_y
         
 
 ;;;;; start of frame
@@ -160,6 +169,39 @@ endupdate_posx:
 
         
 ;;;;; end of frame
+
+; build oam buffer
+        ;; render sam (palette 1)
+        lda sam_oam_attrs ; load sprite attrs (flipx)
+        ora #$01	; set palette 1
+        sta r0		; r0 = attrs
+        lda #$b0	; tiles are vertical from b0
+        clc
+        adc sam_fr	; anim frames are columns
+        pha		; tile goes onto stack
+        ldx #0		; sprites 0, 1, 2
+        ldy #3		; sam is 3 tall
+.samloop
+        lda sam_y	; set sprite y
+        sta OAM_RAM,x
+        pla		; set sprite tile
+        pha
+        sta OAM_RAM+1,x
+        lda r0		; set sprite attrs
+        sta OAM_RAM+2,x
+        lda sam_x	; set sprite x
+        sta OAM_RAM+3,x
+        dey
+        bne .samloop
+        pla
+        
+        ;InitSprite $0, $78, $ae, $b0
+        ;InitSprite $1, $78, $b6, $c0
+        ;InitSprite $2, $78, $be, $d0
+        ;lda #$01
+        ;sta OAM_RAM+2
+        ;sta OAM_RAM+6
+        ;sta OAM_RAM+10
 
 ; reset PPU address and scroll registers
         lda #0
@@ -208,11 +250,9 @@ UpdateSam: subroutine
         dec sam_vx
 .minspd:
 ; set flipx flag
-	lda OAM_RAM+2
+	lda sam_oam_attrs
 	ora #$40
-        sta OAM_RAM+2
-        sta OAM_RAM+6
-        sta OAM_RAM+10
+        sta sam_oam_attrs
 	jmp .enddir
 .right:
 	lda sam_vx
@@ -225,11 +265,9 @@ UpdateSam: subroutine
         inc sam_vx
 .maxspd:
 ; clear flipx flag
-	lda OAM_RAM+2
+	lda sam_oam_attrs
         and #$bf
-        sta OAM_RAM+2
-        sta OAM_RAM+6
-        sta OAM_RAM+10
+        sta sam_oam_attrs
 	jmp .enddir
         
 .friction
