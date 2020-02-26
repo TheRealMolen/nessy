@@ -110,6 +110,8 @@ init_sprite_loop:
         InitSprite $0e, $89, $63, $44	; D
         InitSprite $0f, $98, $63, $49	; I
         InitSprite $10, $a7, $63, $4e	; N
+        ;; NOTE: this is the 9th sprite on this row, so it shouldn't be visible
+        ; TODO: glitchily reorder these
         InitSprite $11, $b8, $63, $47	; G
         
         ;; init motes
@@ -194,7 +196,7 @@ endupdate_posx:
         lda #2
         sta OAM_DMA
 ; activate PPU graphics
-        lda #$1e
+        lda #$18
         sta PPU_MASK 	; enable rendering
         jsr ReadJoypad0
         sta pad0
@@ -418,15 +420,22 @@ NMIHandler:
 ;;;;; CONSTANT DATA
 
 Palette:
-	hex 01		;screen color
-	hex 09081d3d	;background 0 - foreground
-        hex 25252525	;background 1 - background
-        hex 00000000	;background 2
-        hex 0000002d	;background 3
-        hex 00000f0f	;sprite 0
-        hex 08171725	;sprite 1 -- sam
-        hex 142b3b25	;sprite 2
-        hex 1c2c3c25	;sprite 3
+	hex 2d		;screen color
+	hex 09081d	;background 0 - foreground
+        hex 25		; bg1 unused
+        hex 252525	;background 1 - background
+        hex 25		; bg2 unused
+        hex 000000	;background 2
+        hex 25		; bg3 unused
+        hex 000000	;background 3
+        hex 2d		;screen colour MIRROR
+        hex 001d0f	;sprite 0
+        hex 25		; bg1 unused MIRROR
+        hex 0d1727	;sprite 1 -- sam
+        hex 25		; bg2 unused MIRROR
+        hex 142b3b	;sprite 2
+        hex 25		; bg3 unused MIRROR
+        hex 1c2c3c	;sprite 3
         
         
  	include "land.asm"
