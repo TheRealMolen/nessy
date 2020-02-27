@@ -570,12 +570,18 @@ UpdateOnGroundPickup: subroutine
 UpdateBTs: subroutine
         ldy #0
         
+        lda bt_state,y
+        ;; don't flicker later stages
+        sec
+        sbc #1
+        cmp #num_bt_flkr_states
+        bcs .unflkr
+        
         lda timr
         bne .no_flkr
         ; update flicker occasionally
         bne .no_flkr
         lda bt_state,y
-        ;; TODO: don't flicker later stages
         and #~$4f	;clear current flicker & bottom bits
         pha
         jsr Rand
@@ -584,12 +590,15 @@ UpdateBTs: subroutine
         pla
         ora r1
         jmp .done_flkr
+.unflkr
+	lda #0
+        jmp .done_flkr
 .no_flkr
 	lda bt_state,y	;mask out the bottom bits
         and #$f0
 .done_flkr
 
-	ora #2
+	ora #5
         sta bt_state,y
         lda #$c0
         sta bt_posx,y
@@ -613,40 +622,56 @@ RenderBTs: subroutine
         adc #bt_tile_start
         sta r0
         
-        ;; topleft
-        lda bt_posy,y	; set sprite y
-        sta OAM_RAM,x
-        inx
-        lda r0
-        sta OAM_RAM,x
-        inx
-        lda bt_state,y
-        and #OAM_FLIPX
-        ora #2		; set sprite attrs
-        sta OAM_RAM,x
-        inx
-        lda bt_posx,y
-        sta OAM_RAM,x
-        inx
-        
-        ;; topright
-        lda bt_posy,y	; set sprite y
-        sta OAM_RAM,x
-        inx
-        inc r0	;; right column
-        lda r0
-        sta OAM_RAM,x
-        inx
-        lda bt_state,y
-        and #OAM_FLIPX
-        ora #2		; set sprite attrs
-        sta OAM_RAM,x
-        inx
-        lda bt_posx,y
+        ;; sprite Y
+        lda bt_posy,y
+        sta OAM_RAM,x	 ; tl
+        sta OAM_RAM+4,x  ; tr
         clc
         adc #8
-        sta OAM_RAM,x
+        sta OAM_RAM+8,x  ; bl
+        sta OAM_RAM+12,x ; br
         inx
+        
+        ;; sprite tile
+        lda r0
+        sta OAM_RAM,x	 ; tl
+        clc
+        adc #1
+        sta OAM_RAM+4,x	 ; tr
+        clc
+        adc #15
+        sta OAM_RAM+8,x	 ; bl
+        clc
+        adc #1
+        sta OAM_RAM+12,x ; br
+        inx
+        
+        ;; sprite attrs
+        lda bt_state,y
+        and #OAM_FLIPX
+        ora #2		; set sprite attrs
+        sta OAM_RAM,x
+        sta OAM_RAM+4,x
+        sta OAM_RAM+8,x
+        sta OAM_RAM+12,x
+        inx
+        
+        ;; sprite X
+        ;; TODO: deal with half-offscreen
+        lda bt_posx,y
+        sta OAM_RAM,x	 ; tl
+        sta OAM_RAM+8,x  ; bl
+        clc
+        adc #8
+        sta OAM_RAM+4,x	 ; tr
+        sta OAM_RAM+12,x ; br
+        inx
+        
+        ;; skip the rest of the sprites
+        txa
+        clc
+        adc #12
+        tax
         
 .next
         iny
