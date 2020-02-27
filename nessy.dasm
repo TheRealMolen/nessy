@@ -46,6 +46,7 @@ title_skip byte
 title_fade byte
 
 bt_visibility byte			; how visible are the BTs?
+bt_vis_track byte
 bt_state ds.b NUM_BT_DEFS
 bt_posxl ds.b NUM_BT_DEFS	; low byte of posx
 bt_posxh ds.b NUM_BT_DEFS	; high byte of posx
@@ -594,9 +595,7 @@ UpdateOnGroundPickup: subroutine
 
 
 UpdateBTs: subroutine
-	; TODO: BT state based on player motion
-	lda #1
-        sta bt_visibility
+	jsr UpdateBTVisibilty
 
         ldy #0
 .loop
@@ -633,6 +632,53 @@ UpdateBTs: subroutine
         cpy #NUM_BT_DEFS
         bne .loop
 	rts
+        
+        
+    
+max_bt_vis_track = 120
+        
+UpdateBTVisibilty: subroutine
+	;; TODO: if being attacked, bt_vis=5; rts
+        
+	lda sam_vx
+        beq .show_bts
+        
+.hide_bts
+	lda bt_vis_track
+        beq .done
+        clc
+        sbc #2	; hide faster than show
+        bcs .done
+        lda #0
+        jmp .done
+        
+.show_bts
+	lda bt_vis_track
+        clc
+        adc #1
+        cmp #max_bt_vis_track
+        bcc .done
+        lda #max_bt_vis_track
+        
+.done
+	sta bt_vis_track
+        ; map that onto bt_visibilty
+        bne .nonzero
+        lda #1
+        sta bt_visibility
+        rts
+        
+.nonzero
+	lsr
+        lsr
+        lsr
+        lsr
+        lsr
+        clc
+        adc #1
+        sta bt_visibility
+	rts
+        
         
         
 ActivateBT: subroutine
@@ -719,6 +765,9 @@ UpdateBTFlickering: subroutine
         
 ;;;; starting oam offset goes in X (and new one is returned in x)
 RenderBTs: subroutine
+	lda bt_visibility
+        beq .done
+        
 	ldy #0
 .loop
         ; ... or if they've been deactivated
@@ -788,6 +837,7 @@ RenderBTs: subroutine
         iny
         cpy #NUM_BT_DEFS
         bne .loop
+.done
 	rts
 
 
