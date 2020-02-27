@@ -202,18 +202,10 @@ no_render_title:
         beq .post_flipbg
         lda scrollx+1
         cmp #2
-        beq .move_req_msg
-        cmp #3
         beq .wipe_req_msg
         jmp .bg_flip_done
-.move_req_msg
-	lda #$2c
-        jsr ClearDeliveryRequest
-        lda #20
-        jsr PrintDeliveryRequest
-        jmp .bg_flip_done
 .wipe_req_msg
-	lda #$20
+	lda #$2C
         jsr ClearDeliveryRequest
 .bg_flip_done
 	lda #0
