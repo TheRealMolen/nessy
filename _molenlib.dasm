@@ -70,6 +70,30 @@ OAM_FLIPX = $40
         ENDM
         
         
+; Increment 16 bit
+	MAC _INC16
+        lda {1}
+        clc
+        adc #1
+        sta {1}
+        lda {1}+1
+        adc #0
+        sta {1}+1
+        ENDM
+        
+; Decrement 16 bit
+	MAC _DEC16
+        lda {1}
+        sec
+        sbc #1
+        sta {1}
+        lda {1}+1
+        sbc #0
+        sta {1}+1
+        ENDM
+        
+        
+        
 ; Signed divide by 4
 	MAC DivBy4s
         bpl .positive

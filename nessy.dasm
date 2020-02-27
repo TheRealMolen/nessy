@@ -706,25 +706,92 @@ DeactivateBT: subroutine
         
 
 UpdateBTPos: subroutine
-        ; update position
+        ; unpack posx from lo,hi into rx2
+        lda bt_posxl,y
+        sta rx2
+        lda bt_posxh,y
+        sta rx2+1
+        
+        ;; track world scroll
         lda world_inc	; put world inc in r1:r0
         beq .world_static
         sta r0
         lda #$ff	; world inc is zero or negative
         sta r1
-        ; unpack from lo,hi into rx2
-        lda bt_posxl,y
-        sta rx2
-        lda bt_posxh,y
-        sta rx2+1
-        ; add
         _ADD16 rx2, r0, rx2
-        ; pack back into lo,hi
+.world_static
+
+	; random jitter
+        jsr Rand
+        and #$f
+        cmp #1
+        beq .driftr
+        cmp #2
+        beq .driftl
+        cmp #3
+        beq .driftu
+        cmp #4
+        beq .driftd
+        jmp .driftdone
+
+.driftr 
+	_INC16 rx2
+        jmp .driftdone
+.driftl  
+	_DEC16 rx2
+        jmp .driftdone
+.driftu
+	lda bt_posy,y
+        clc
+        adc #1
+        ;; FIXME?: could overflow
+        sta bt_posy,y
+        jmp .driftdone
+.driftd  
+	lda bt_posy,y
+        sec
+        sbc #1
+        ;; FIXME?: could underflow
+        sta bt_posy,y
+        jmp .driftdone
+.driftdone
+
+	;; drift towards the player
+        jsr Rand
+        cmp #70
+        bcs .post_x_attract
+        lda sam_x
+        cmp rx2
+        bcs .attractr
+        dec rx2
+        jmp .post_x_attract
+.attractr
+	inc rx2
+.post_x_attract
+
+        jsr Rand
+        cmp #30
+        bcs .post_y_attract
+        lda sam_y
+        sbc #18		; aim for his head!
+        cmp bt_posy,y
+        bcs .attractu
+        lda bt_posy,y
+        sbc #0	; we know that carry is clear
+        sta bt_posy,y
+        jmp .post_y_attract
+.attractu
+        lda bt_posy,y
+        adc #0	; we know that carry is set
+        sta bt_posy,y
+.post_y_attract
+
+        ; pack posx back into lo,hi
         lda rx2
         sta bt_posxl,y
         lda rx2+1
         sta bt_posxh,y
-.world_static
+        
 	rts
         
         
