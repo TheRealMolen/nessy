@@ -20,4 +20,7 @@ playing on an NES
 - DEATH & restart
     - attribute swaps to black palette? [reuse penny palette]
     - floor hands?
+- hold breath to hide from BTs
+- audio feedback to warn about BTs
+- temporally dither BT visibility
 - like particles
