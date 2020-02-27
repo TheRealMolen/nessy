@@ -11,6 +11,8 @@ playing on an NES
 
 ### TODO
 - BTs hovering
+    - at authored positions
+    - bobbing
 - dropping pickups
 - BT chasing
 - BTs hidden when moving
