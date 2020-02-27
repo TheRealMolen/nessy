@@ -14,49 +14,11 @@ NUM_BT_DEFS = 12
 
 	seg.u ZEROPAGE
 	org $0
-        
-; "registers"
-r0	byte
-r1	byte
-rx2	word
-
-rand	byte
-
-;; gamestate - 0 is intro, 1 is gameplay
-state	byte
-
-timr	byte
-pad0	byte
-
-sam_x	byte
-sam_x_uf byte
-sam_y	byte
-sam_vx	byte
-sam_maxspd byte
-sam_oam_attrs	byte
-sam_fr	byte
-sam_tmr	byte
+       
+       
+	include "zeropage.dasm"
 
 
-world_inc byte
-scrollx word
-flipbg  byte	; when this is true, we need to handle bg flipping next nmi
-
-title_skip byte
-title_fade byte
-
-bt_visibility byte			; how visible are the BTs?
-bt_vis_track byte
-bt_state ds.b NUM_BT_DEFS
-bt_posxl ds.b NUM_BT_DEFS	; low byte of posx
-bt_posxh ds.b NUM_BT_DEFS	; high byte of posx
-bt_posy  ds.b NUM_BT_DEFS
-bt_attrs ds.b NUM_BT_DEFS	; sprite attrs
-
-bt_touching byte	; is a bt touching this frame?
-bt_contact byte		; what's the total amount of contact?
-
-pu_state ds.b num_pickups
 
 
 ;;;;; NES CARTRIDGE HEADER
@@ -166,6 +128,7 @@ common_update:
         jmp .scroll_loop
 .no_scroll
         
+        jsr HandleFlinging
         jsr UpdateBTs
         jsr UpdateMotes
         
@@ -174,6 +137,7 @@ common_update:
         jsr RenderSam
         jsr RenderBTs
         jsr RenderPickups
+        jsr RenderFlingers
         jsr RenderOoze
         
         lda state
@@ -188,7 +152,7 @@ no_render_title:
         inx
         inx
         cpx #$C0
-        bne .blankspriteloop
+        bcc .blankspriteloop
         
         
 
@@ -229,6 +193,8 @@ no_render_title:
         sta PPU_CTRL
         
 ; activate PPU graphics
+	lda pad0
+        sta ppad0
         jsr ReadJoypad0
         sta pad0
         jmp Tick
@@ -250,13 +216,18 @@ UpdateSam: subroutine
 ;; update max speed
         ldx #0
         lda #0
+        ldy #0
         clc
 .pu_loop
-	;; NB if the pu state is ever more complex than 1/0, this is broked
-	adc pu_state,x
+	lda pu_state,x
+        cmp #1
+        bne .not_carried
+        iny
+.not_carried
         inx
         cpx #num_pickups
         bne .pu_loop
+        tya
         ; now lookup our max speed
         tax
         lda pu_maxspeed,x
@@ -496,7 +467,10 @@ RenderPickups: subroutine
         
 .loop
 	lda pu_state,y
+        cmp #0
         beq .on_ground
+        cmp #2		; has been flung
+        beq .next
 
 .on_back
 	lda sam_y	; sprite y is on sam's back
@@ -517,7 +491,7 @@ RenderPickups: subroutine
       	sbc r1
         sta r0
         
-        jmp .end_pu
+        jmp .next
         
 .on_ground
 	jsr UpdateOnGroundPickup
@@ -526,7 +500,7 @@ RenderPickups: subroutine
         lda rx2+1
         beq .onscreen
 	;; this pickup is fully offscreen - don't add a sprite for it
-        jmp .end_pu
+        jmp .next
 .onscreen
         lda #GROUND_Y	; set sprite y
         sta OAM_RAM,x
@@ -541,7 +515,7 @@ RenderPickups: subroutine
         sta OAM_RAM,x
         inx
         
-.end_pu
+.next
         iny		; loop
         cpy #num_pickups
         bne .loop
@@ -1010,6 +984,124 @@ RenderBTs: subroutine
 
 
 
+;       __   _   _                                     
+;      / _| | | (_)                                    
+;     | |_  | |  _   _ __     __ _    ___   _ __   ___ 
+;     |  _| | | | | | '_ \   / _` |  / _ \ | '__| / __|
+;     | |   | | | | | | | | | (_| | |  __/ | |    \__ \
+;     |_|   |_| |_| |_| |_|  \__, |  \___| |_|    |___/
+;                             __/ |                    
+;                            |___/      
+
+UpdateFlinger: subroutine
+	lda flingstatus
+        beq .done
+        
+        ; update y
+        inc flingvy
+        lda flingvy	; scale down by 2
+        DivBy2s
+        sta r0
+        
+        lda flingy
+        clc
+        adc r0
+        sta flingy
+        cmp #GROUND_Y
+        bcs .hitground
+        
+        lda flingvx
+        DivBy2s
+        clc
+        adc flingx
+        sta flingx
+        rts
+        
+.hitground
+	lda #0
+        sta flingvy
+        sta flingstatus
+        
+.done
+	rts
+        
+
+
+HandleFlinging: subroutine
+	jsr UpdateFlinger
+
+	lda flingdebounce
+        beq .nodebounce
+        dec flingdebounce
+	rts
+.nodebounce
+
+	; is there a flinger still going?
+	lda flingstatus
+        bne .done
+        
+	lda ppad0
+        eor #$ff
+        and pad0
+        and #PAD_B
+        bne .pressed
+.done
+        rts
+        
+.pressed
+	;; find a pickup that we can fling
+        ldx #0
+.loop
+	lda pu_state,x
+        cmp #1
+        beq .found
+	inx
+        cpx #num_pickups
+        bcc .loop
+        ; nothing to fling
+        rts
+
+.found
+	;; x is the pickup to fling
+        lda #2
+        sta pu_state,x
+        
+        lda #1
+        sta flingstatus
+        
+        ; init pos
+        lda sam_x
+        sbc #6
+        sta flingx
+        lda #GROUND_Y-12
+        sta flingy
+        lda #-5 * 2
+        sta flingvy
+        lda #-2 * 2
+        sta flingvx
+        
+	lda #11
+        sta flingdebounce
+        
+	rts
+
+
+
+RenderFlingers: subroutine
+	lda flingstatus
+        beq .done
+        
+        AddSprite flingx, flingy, #pickup_static_tile, #1
+        
+.done
+	rts
+
+
+
+
+
+
+
 
 ;       ___     ___     ___     ___    ____   ___ 
 ;      / _ \   / _ \   / _ \   / _ \  |_  /  / _ \
@@ -1051,26 +1143,6 @@ RenderOoze: subroutine
 	rts
 
 
-
-;;;; simple addsprite macro
-	MAC AddSprite ; x, y, tile, attrs
-        
-        lda {2}		; sprite Y
-        sta OAM_RAM,x
-        inx
-        
-        lda {3}		; sprite tile
-        sta OAM_RAM,x
-        inx
-        
-        lda {4}		; sprite attrs
-        sta OAM_RAM,x
-        inx
-        
-        lda {1}		; sprite X
-        sta OAM_RAM,x
-        inx
-        ENDM
 
 
 OOZE_Y = GROUND_Y + 8

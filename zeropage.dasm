@@ -1,0 +1,56 @@
+
+        
+; "registers"
+r0	byte
+r1	byte
+rx2	word
+
+rand	byte
+
+;; gamestate - 0 is intro, 1 is gameplay
+state	byte
+
+timr	byte
+pad0	byte
+ppad0	byte
+
+sam_x	byte
+sam_x_uf byte
+sam_y	byte
+sam_vx	byte
+sam_maxspd byte
+sam_oam_attrs	byte
+sam_fr	byte
+sam_tmr	byte
+
+
+world_inc byte
+scrollx word
+flipbg  byte	; when this is true, we need to handle bg flipping next nmi
+
+title_skip byte
+title_fade byte
+
+
+flingdebounce byte
+flingstatus   byte
+flingx 	byte
+flingy	byte
+flingvx byte
+flingvy byte
+
+
+bt_visibility byte			; how visible are the BTs?
+bt_vis_track byte
+bt_state ds.b NUM_BT_DEFS
+bt_posxl ds.b NUM_BT_DEFS	; low byte of posx
+bt_posxh ds.b NUM_BT_DEFS	; high byte of posx
+bt_posy  ds.b NUM_BT_DEFS
+bt_attrs ds.b NUM_BT_DEFS	; sprite attrs
+
+bt_touching byte	; is a bt touching this frame?
+bt_contact byte		; what's the total amount of contact?
+
+pu_state ds.b num_pickups
+
+

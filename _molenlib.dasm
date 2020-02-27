@@ -143,6 +143,29 @@ OAM_FLIPX = $40
         ENDM
         
         
+        
+
+;;;; simple addsprite macro
+	MAC AddSprite ; x, y, tile, attrs
+        lda {2}		; sprite Y
+        sta OAM_RAM,x
+        inx
+        
+        lda {3}		; sprite tile
+        sta OAM_RAM,x
+        inx
+        
+        lda {4}		; sprite attrs
+        sta OAM_RAM,x
+        inx
+        
+        lda {1}		; sprite X
+        sta OAM_RAM,x
+        inx
+        ENDM
+        
+        
+        
 ;;; set the flipx flag. param is address of attrs
 	MAC SetSpriteFlipX
 	lda {1}
