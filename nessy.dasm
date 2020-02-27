@@ -1,33 +1,8 @@
 
 	include "nesdefs.dasm"
-
-;;; MACROS
-
-
-OAM_FLIPX = $40
+	include "_molenlib.dasm"
 
 
-; Arithmetic shift right A
-        MAC _ASR
-        cmp #$80
-        ror
-        ENDM
-
-
-; InitSprite  spr, x, y, tile
-        MAC InitSprite
-        lda #{1}
-        asl
-        asl
-        tax
-        lda #{3}
-        sta OAM_RAM,x
-        lda #{4}
-        sta OAM_RAM+1,x
-        lda #{2}
-        sta OAM_RAM+3,x
-        ENDM
-        
         
 ;;;;; VARIABLES
 
@@ -127,6 +102,9 @@ Start:
         lda #1
         sta pu_state+0
         sta pu_state+1
+        sta pu_state+2
+        sta pu_state+3
+        sta pu_state+4
         
 ;;;;; setup ppu
         lda #$18
@@ -273,23 +251,24 @@ UpdateSam: subroutine
         and #$1
         bne .right
         jmp .friction
+        
 .left:
-	lda sam_vx
-        cmp #-12
+	lda sam_maxspd
+        _NEG
+        sta sam_maxspd
+        cmp sam_vx
         beq .minspd
         dec sam_vx
         cmp #1
         bmi .minspd
         dec sam_vx
 .minspd:
-; set flipx flag
-	lda sam_oam_attrs
-	ora #$40
-        sta sam_oam_attrs
+	SetSpriteFlipX sam_oam_attrs
 	jmp .updateanim
+        
 .right:
 	lda sam_vx
-        cmp #12
+        cmp sam_maxspd
         beq .maxspd
         ; bonus turnaround
         inc sam_vx
@@ -297,10 +276,7 @@ UpdateSam: subroutine
         bpl .maxspd
         inc sam_vx
 .maxspd:
-; clear flipx flag
-	lda sam_oam_attrs
-        and #$bf
-        sta sam_oam_attrs
+	ClearSpriteFlipX sam_oam_attrs
 	jmp .updateanim
         
 .friction
@@ -339,8 +315,8 @@ screen_clamp_point = 10
 push_scroll_point = $88
 
 	lda sam_vx
-        _ASR		; vx /= 4
-        _ASR
+        DivBy4s
+        
         clc		; add on sam's x pos
         adc sam_x
         ; [not in push scroll adc world_inc	; plus the world scroll pos

@@ -17,10 +17,10 @@ pu_pos_32:
 ;; sam's max speed when carrying N pickups
 ; NB this is x4
 pu_maxspeed:
+	.byte 16
+	.byte 14
 	.byte 12
-	.byte 11
 	.byte 10
-	.byte 19
 	.byte 8
 	.byte 7
 	.byte 6

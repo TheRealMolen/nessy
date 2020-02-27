@@ -1,0 +1,62 @@
+
+
+;;; MACROS
+
+
+OAM_FLIPX = $40
+
+
+; Arithmetic shift right A
+        MAC _ASR
+        cmp #$80
+        ror
+        ENDM
+        
+; Negate A
+	MAC _NEG
+        eor #$ff
+        sec
+        adc #0
+        ENDM
+        
+; Signed divide by 4
+	MAC DivBy4s
+        bpl .positive
+        ;; for negative values, we add (divisor-1) so we round to zero
+        clc
+        adc #3
+.positive
+        _ASR		; vx /= 4
+        _ASR
+        ENDM
+
+
+; InitSprite  spr, x, y, tile
+        MAC InitSprite
+        lda #{1}
+        asl
+        asl
+        tax
+        lda #{3}
+        sta OAM_RAM,x
+        lda #{4}
+        sta OAM_RAM+1,x
+        lda #{2}
+        sta OAM_RAM+3,x
+        ENDM
+        
+        
+;;; set the flipx flag. param is address of attrs
+	MAC SetSpriteFlipX
+	lda {1}
+	ora #OAM_FLIPX
+        sta {1}
+        ENDM
+
+;;; clear the flipx flag. param is address of attrs
+	MAC ClearSpriteFlipX
+	lda {1}
+        and #~OAM_FLIPX
+        sta {1}
+        ENDM
+        
