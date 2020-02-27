@@ -45,9 +45,12 @@ flipbg  byte	; when this is true, we need to handle bg flipping next nmi
 title_skip byte
 title_fade byte
 
+bt_visibility byte			; how visible are the BTs?
 bt_state ds.b NUM_BT_DEFS
-bt_posx	 ds.w NUM_BT_DEFS
+bt_posxl ds.b NUM_BT_DEFS	; low byte of posx
+bt_posxh ds.b NUM_BT_DEFS	; high byte of posx
 bt_posy  ds.b NUM_BT_DEFS
+bt_attrs ds.b NUM_BT_DEFS	; sprite attrs
 
 pu_state ds.b num_pickups
 
@@ -111,7 +114,16 @@ Start:
                                           
 ;;;;; start of frame
 
-Tick:
+Tick: subroutine
+; update animation timer
+	inc timr
+        lda #3
+        cmp timr
+        bne .done_timr
+        lda #0
+        sta timr
+.done_timr
+
 	lda state
         beq update_title
         jmp common_update
@@ -163,7 +175,6 @@ common_update:
         bne no_render_title
         jsr RenderTitle
 no_render_title:
-	;; HACK: blank out title sprites
         lda #$ff
 .blankspriteloop
         sta OAM_RAM,x
@@ -171,7 +182,7 @@ no_render_title:
         inx
         inx
         inx
-        cpx #$80
+        cpx #$C0
         bne .blankspriteloop
         
         
@@ -567,54 +578,156 @@ UpdateOnGroundPickup: subroutine
 ;      \____/     \_/    |___/
                             
 
+;; BT id in Y
+;; returns in rx2
+	MAC LoadBTPos
+        lda #0
+        sta rx2+1
+        lda bt_pos_32,y
+        sta rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        ENDM
+
+
 UpdateBTs: subroutine
+	; TODO: BT state based on player motion
+	lda #1
+        sta bt_visibility
+
         ldy #0
-        
+.loop
         lda bt_state,y
+        bne .update_active
+        cmp #2		; has this one been deactivated?
+        beq .next	; yup
+        
+        ;; should we be updating this BT?
+        LoadBTPos	; load it's world pos into rx2
+        _SUB16 rx2, scrollx, rx2 ; rx2 = screen-space BT pos
+        ; activate any BTs on this screen or next
+        lda rx2+1
+        cmp #2
+        bpl .next
+        
+        ;; this one needs to be activated!
+        jsr ActivateBT
+        
+.update_active
+	jsr UpdateBTPos
+
+	;; does this one need to be deactivated?
+        lda bt_posxh,y
+        cmp #2
+        bcc .still_active
+        jsr DeactivateBT
+.still_active
+        
+	jsr UpdateBTFlickering
+       
+.next
+        iny
+        cpy #NUM_BT_DEFS
+        bne .loop
+	rts
+        
+        
+ActivateBT: subroutine
+        lda #1
+        sta bt_state,y
+        ; set up attrs
+        lda #2		; set sprite palette
+        sta bt_attrs,y
+        ; set up x pos
+        lda rx2
+        sta bt_posxl,y
+        lda rx2+1
+        sta bt_posxh,y
+        ; start at arbitrary height
+        jsr Rand
+        and #$f
+        adc #$70
+        sta bt_posy,y
+	rts
+        
+DeactivateBT: subroutine
+	lda #2
+        sta bt_state,y
+	rts
+        
+
+UpdateBTPos: subroutine
+        ; update position
+        lda world_inc	; put world inc in r1:r0
+        beq .world_static
+        sta r0
+        lda #$ff	; world inc is zero or negative
+        sta r1
+        ; unpack from lo,hi into rx2
+        lda bt_posxl,y
+        sta rx2
+        lda bt_posxh,y
+        sta rx2+1
+        ; add
+        _ADD16 rx2, r0, rx2
+        ; pack back into lo,hi
+        lda rx2
+        sta bt_posxl,y
+        lda rx2+1
+        sta bt_posxh,y
+.world_static
+	rts
+        
+        
+;; update flickering of BTs that should be flickering
+; BT in Y
+UpdateBTFlickering: subroutine
+        lda timr
+        bne .no_flkr
+        
+	;; update flickering
+        lda bt_visibility
         ;; don't flicker later stages
         sec
         sbc #1
         cmp #num_bt_flkr_states
         bcs .unflkr
-        
-        lda timr
-        bne .no_flkr
-        ; update flicker occasionally
-        bne .no_flkr
-        lda bt_state,y
-        and #~$4f	;clear current flicker & bottom bits
+       
+        lda bt_attrs,y
+        and #~OAM_FLIPX
         pha
         jsr Rand
-        and #$40
+        and #OAM_FLIPX
         sta r1
         pla
         ora r1
         jmp .done_flkr
 .unflkr
-	lda #0
+	lda #2
         jmp .done_flkr
 .no_flkr
-	lda bt_state,y	;mask out the bottom bits
-        and #$f0
+	lda bt_attrs,y
 .done_flkr
-
-	ora #5
-        sta bt_state,y
-        lda #$c0
-        sta bt_posx,y
-        lda #$90
-        sta bt_posy,y
+        sta bt_attrs,y
 	rts
+        
+        
         
         
 ;;;; starting oam offset goes in X (and new one is returned in x)
 RenderBTs: subroutine
 	ldy #0
 .loop
+        ; ... or if they've been deactivated
 	lda bt_state,y
-        and #$f		; major state in bottom bits (flicker in top)
-        beq .next
+        cmp #1
+        bne .next
+        
         ;; set r0 to sprite index = base + (state-1)*2
+        lda bt_visibility
         sec
         sbc #1
         asl
@@ -647,9 +760,7 @@ RenderBTs: subroutine
         inx
         
         ;; sprite attrs
-        lda bt_state,y
-        and #OAM_FLIPX
-        ora #2		; set sprite attrs
+        lda bt_attrs,y
         sta OAM_RAM,x
         sta OAM_RAM+4,x
         sta OAM_RAM+8,x
@@ -658,7 +769,7 @@ RenderBTs: subroutine
         
         ;; sprite X
         ;; TODO: deal with half-offscreen
-        lda bt_posx,y
+        lda bt_posxl,y
         sta OAM_RAM,x	 ; tl
         sta OAM_RAM+8,x  ; bl
         clc
@@ -719,15 +830,6 @@ InitMotes: subroutine
 	rts
         
 UpdateMotes: subroutine
-; update animation timer
-	inc timr
-        lda #3
-        cmp timr
-        bne .done_timr
-        lda #0
-        sta timr
-.done_timr
-
 	ldx #base_mote * 4
         ldy #$10
 .loop:

@@ -175,7 +175,15 @@ PrintDeliveryRequest: subroutine
 
 delivery_msg:
 	.byte "PENNY L. ARABIATA",0,$22
-        .byte "Pls bring me a tray $$",$22,0
+        .byte "Pls bring me medicine asap",$22,0
+        
+        
+delivered_msg:
+	.byte "I thought I wanted medicine,",0
+	.byte "but what I really needed was",0
+	.byte "      human connection",0
+	.byte "         $$$$$$$$$$",0
+        .byte 0
         
 
 ;; clear the delivery instructions

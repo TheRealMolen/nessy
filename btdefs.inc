@@ -10,7 +10,7 @@ num_bt_flkr_states = 2	; the bottom N state that are just flickery dust
 ;; initial BT positions, div32
 bt_pos_32:
 	.hex 07
-	.hex 10
+	.hex 12
 	.hex 21
 	.hex 28
 	.hex 30
