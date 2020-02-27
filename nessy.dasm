@@ -3,6 +3,9 @@
 	include "_molenlib.dasm"
 
 
+
+GROUND_Y = $b6
+
         
 ;;;;; VARIABLES
 
@@ -12,6 +15,7 @@
 ; "registers"
 r0	byte
 r1	byte
+rx2	word
 
 rand	byte
 
@@ -21,7 +25,8 @@ state	byte
 timr	byte
 pad0	byte
 
-sam_x	word
+sam_x	byte
+sam_x_uf byte
 sam_y	byte
 sam_vx	byte
 sam_maxspd byte
@@ -46,6 +51,13 @@ pu_state ds.b num_pickups
         
 
 ;;;;; START OF CODE
+
+;   _____     _   _     _____     _____ 
+;  |_   _|   | \ | |   |_   _|   |_   _|
+;    | |     |  \| |     | |       | |  
+;    | |     | . ` |     | |       | |  
+;   _| |_    | |\  |    _| |_      | |  
+;   \___/    \_| \_/    \___/      \_/  
 
 Start:
 ; wait for PPU warmup; clear CPU RAM
@@ -95,16 +107,8 @@ Start:
 ;;;;; init objects
 	lda #$78
         sta sam_x
-        lda #$b6
+        lda #GROUND_Y
         sta sam_y
-        
-        ;;;;; DEBUG HACK!
-        lda #1
-        sta pu_state+0
-        sta pu_state+1
-        sta pu_state+2
-        sta pu_state+3
-        sta pu_state+4
         
 ;;;;; setup ppu
         lda #$18
@@ -113,6 +117,17 @@ Start:
         sta PPU_CTRL	; enable NMI
         
 
+
+
+;   ___  ___      _          _                       
+;   |  \/  |     (_)        | |                      
+;   | .  . | __ _ _ _ __    | |     ___   ___  _ __  
+;   | |\/| |/ _` | | '_ \   | |    / _ \ / _ \| '_ \ 
+;   | |  | | (_| | | | | |  | |___| (_) | (_) | |_) |
+;   \_|  |_/\__,_|_|_| |_|  \_____/\___/ \___/| .__/ 
+;                                             | |    
+;                                             |_|   
+                                          
 ;;;;; start of frame
 
 Tick:
@@ -121,9 +136,11 @@ Tick:
         jmp common_update
 
 update_title:
+	clc
 	lda scrollx
-        and #$1
-        cmp #1
+        adc scrollx+1
+        beq common_update
+        lda timr
         bne common_update
         inc title_fade
         bne common_update ; leave state 0 (title) after title_fade wraps
@@ -228,6 +245,16 @@ no_render_title:
         
 
 
+
+;  ______ _                       
+;  | ___ \ |                      
+;  | |_/ / | __ _ _   _  ___ _ __ 
+;  |  __/| |/ _` | | | |/ _ \ '__|
+;  | |   | | (_| | |_| |  __/ |   
+;  \_|   |_|\__,_|\__, |\___|_|   
+;                  __/ |          
+;                 |___/     
+
 UpdateSam: subroutine
 ;; update max speed
         ldx #0
@@ -246,10 +273,10 @@ UpdateSam: subroutine
 
 ;;; update facing
 	lda pad0
-        and #$2
+        and #PAD_LEFT
         bne .left
 	lda pad0
-        and #$1
+        and #PAD_RIGHT
         bne .right
         jmp .friction
         
@@ -316,6 +343,20 @@ screen_clamp_point = 10
 push_scroll_point = $88
 
 	lda sam_vx
+        ;; add any underflow (so we can move less than 1px per frame)
+        clc
+        adc sam_x_uf
+        pha
+        bpl .pos_uf
+        _NEG
+        and #3
+        _NEG
+        jmp .store_uf
+.pos_uf
+        and #3
+.store_uf
+        sta sam_x_uf
+        pla
         DivBy4s
         
         clc		; add on sam's x pos
@@ -396,8 +437,34 @@ RenderSam: subroutine
         pla
         sta sam_y
         rts
+       
+   
+   
+   
+;  ______ _      _                    
+;  | ___ (_)    | |                   
+;  | |_/ /_  ___| | ___   _ _ __  ___ 
+;  |  __/| |/ __| |/ / | | | '_ \/ __|
+;  | |   | | (__|   <| |_| | |_) \__ \
+;  \_|   |_|\___|_|\_\\__,_| .__/|___/
+;                          | |        
+;                          |_|       
+      
+;; pickup id in Y
+;; returns in rx2
+	MAC LoadPickupPos
+        lda #0
+        sta rx2+1
+        lda pu_pos_32,y
+        sta rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        _LSL16 rx2
+        ENDM
         
-        
+       
 ;;;; starting oam offset goes in X (and new one is returned in x)
 RenderPickups: subroutine
 	lda sam_x	; put carry pos in r0
@@ -451,7 +518,15 @@ RenderPickups: subroutine
         jmp .end_pu
         
 .on_ground
-        lda #$ff	; set sprite y
+	jsr UpdateOnGroundPickup
+        
+        ;; is it on screen?
+        lda rx2+1
+        beq .onscreen
+	;; this pickup is fully offscreen - don't add a sprite for it
+        jmp .end_pu
+.onscreen
+        lda #GROUND_Y	; set sprite y
         sta OAM_RAM,x
         inx
         lda #pickup_static_tile
@@ -460,7 +535,7 @@ RenderPickups: subroutine
         lda #1		; set sprite attrs (shares a pal with sam, never flips x)
         sta OAM_RAM,x
         inx
-        lda #70	; set sprite x
+        lda rx2
         sta OAM_RAM,x
         inx
         
@@ -470,7 +545,51 @@ RenderPickups: subroutine
         bne .loop
 	rts
         
+   
+
+arm_length = 12
+
+UpdateOnGroundPickup: subroutine
+	lda #1
+	LoadPickupPos		 ; decompress pickup pos
+        _SUB16 rx2, scrollx, rx2 ; rx2 = screen-space pickup pos
         
+        lda rx2+1	; if the pickup is on a different screen, we're done here
+        bne .done
+        
+        ;; check for pickup
+        lda pad0
+        and #PAD_UP
+        beq .done
+        
+        ;; the player's asked to pick it up - can they?
+        lda sam_x	; get abs distance
+        clc
+        adc #4		; move to centre of sam
+        sec
+        sbc rx2
+        bpl .positive
+        _NEG
+.positive
+	cmp #arm_length
+        bpl .toofar
+        ;; we can pick it up!
+        lda #1
+        sta pu_state,y
+.toofar
+        
+.done
+	rts
+        
+        
+        
+        
+        
+      
+;   _ __ ___  _ ___  ___ 
+;  | '_ ` _ \| / __|/ __|
+;  | | | | | | \__ \ (__ 
+;  |_| |_| |_|_|___/\___|
         
         
 UpdateMotes: subroutine

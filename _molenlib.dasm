@@ -2,14 +2,53 @@
 
 ;;; MACROS
 
+PAD_RIGHT  = $01
+PAD_LEFT   = $02
+PAD_DOWN   = $04
+PAD_UP	   = $08
+PAD_START  = $10
+PAD_SELECT = $20
+PAD_B	   = $40
+PAD_A	   = $80
+
 
 OAM_FLIPX = $40
+
+
+; 16 bit set immediate, I, R => R = I
+	MAC _STI16
+        lda #<{1}	; low byte
+        sta {2}
+        lda #>{1}	; high byte
+        sta {2}+1
+        ENDM
 
 
 ; Arithmetic shift right A
         MAC _ASR
         cmp #$80
         ror
+        ENDM
+        
+; 16 bit LSL - param is word in mem
+	MAC _LSL16
+        lda {1}
+        asl
+        sta {1}
+        lda {1}+1
+        rol
+        sta {1}+1
+        ENDM
+        
+; 16 bit sub - params A, B, C => C = A - B
+	MAC _SUB16
+        sec
+        lda {1}
+        sbc {2}
+        sta {3}
+        lda {1}+1
+        sbc {2}+1
+        sta {3}+1
         ENDM
         
 ; Negate A
@@ -19,6 +58,7 @@ OAM_FLIPX = $40
         adc #0
         ENDM
         
+        
 ; Signed divide by 4
 	MAC DivBy4s
         bpl .positive
@@ -27,6 +67,18 @@ OAM_FLIPX = $40
         adc #3
 .positive
         _ASR		; vx /= 4
+        _ASR
+        ENDM
+        
+; Signed divide by 8
+	MAC DivBy8s
+        bpl .positive
+        ;; for negative values, we add (divisor-1) so we round to zero
+        clc
+        adc #7
+.positive
+        _ASR		; vx /= 8
+        _ASR
         _ASR
         ENDM
 
