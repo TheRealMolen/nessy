@@ -55,7 +55,7 @@ RenderTitle: subroutine
         lda #stranding_text_x	; x pos in r0
         sta r0
 .loop2
-	cpy #15
+	cpy #14
         beq .end_stranding	; if it's the end, bail (and roll back x!)
         
 	lda #stranding_text_y	; y pos is constant
@@ -91,14 +91,11 @@ RenderTitle: subroutine
 .end_stranding
         
         ;; update the letter of STRANDING that we're skipping this frame
-        inc title_skip
-        lda title_skip
-        cmp #5 + stranding_letters
-        bne .doneskip
-        lda #5
+        jsr Rand
+        and #$7
         sta title_skip
-.doneskip
 	pla
+       	adc #113
         sta rand
         rts
         
@@ -129,7 +126,7 @@ PickTitleLetter: subroutine
 .random_letter
 	clc	; sub 1 from acc
         sbc #0
-        and #7
+        and #$f
         rts
 .skip_letter
 	lda #$ff
