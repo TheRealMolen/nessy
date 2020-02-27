@@ -6,6 +6,9 @@
 
 GROUND_Y = $b6
 
+; this doesn't work if it's only in the defs inc file :shrugemoji:
+NUM_BT_DEFS = 12
+
         
 ;;;;; VARIABLES
 
@@ -42,6 +45,10 @@ flipbg  byte	; when this is true, we need to handle bg flipping next nmi
 title_skip byte
 title_fade byte
 
+bt_state ds.b NUM_BT_DEFS
+bt_posx	 ds.w NUM_BT_DEFS
+bt_posy  ds.b NUM_BT_DEFS
+
 pu_state ds.b num_pickups
 
 
@@ -76,33 +83,7 @@ Start:
         
                 
 ;;;; init sprites
-        
-        ;; init motes
-        InitSprite $20, $33, $10, $16
-        InitSprite $21, $77, $26, $17
-        InitSprite $22, $46, $14, $18
-        InitSprite $23, $11, $61, $16
-        InitSprite $24, $76, $a2, $17
-        InitSprite $25, $a0, $13, $18
-        InitSprite $26, $e3, $b2, $16
-        InitSprite $27, $c1, $51, $17
-        InitSprite $28, $e4, $73, $18
-        InitSprite $29, $b3, $b5, $16
-        InitSprite $2a, $91, $d6, $17
-        InitSprite $2b, $48, $e9, $18
-        InitSprite $2c, $40, $93, $16
-        InitSprite $2d, $33, $b5, $17
-        InitSprite $2e, $83, $64, $18
-        InitSprite $2f, $d8, $e9, $16
-        ; flip some
-        lda #OAM_FLIPX
-        sta OAM_RAM+2+$20*4
-        sta OAM_RAM+2+$22*4
-        sta OAM_RAM+2+$23*4
-        sta OAM_RAM+2+$24*4
-        sta OAM_RAM+2+$28*4
-        sta OAM_RAM+2+$2a*4
-        sta OAM_RAM+2+$2e*4
+	jsr InitMotes
         
 ;;;;; init objects
 	lda #$78
@@ -169,11 +150,13 @@ common_update:
         jmp .scroll_loop
 .no_scroll
         
+        jsr UpdateBTs
         jsr UpdateMotes
         
 ; build oam buffer
 	ldx #0
         jsr RenderSam
+        jsr RenderBTs
         jsr RenderPickups
         
         lda state
@@ -576,6 +559,103 @@ UpdateOnGroundPickup: subroutine
         
         
         
+;      ______    _____        
+;      | ___ \  |_   _|       
+;      | |_/ /    | |     ___ 
+;      | ___ \    | |    / __|
+;      | |_/ /    | |    \__ \
+;      \____/     \_/    |___/
+                            
+
+UpdateBTs: subroutine
+        ldy #0
+        
+        lda timr
+        bne .no_flkr
+        ; update flicker occasionally
+        bne .no_flkr
+        lda bt_state,y
+        ;; TODO: don't flicker later stages
+        and #~$4f	;clear current flicker & bottom bits
+        pha
+        jsr Rand
+        and #$40
+        sta r1
+        pla
+        ora r1
+        jmp .done_flkr
+.no_flkr
+	lda bt_state,y	;mask out the bottom bits
+        and #$f0
+.done_flkr
+
+	ora #2
+        sta bt_state,y
+        lda #$c0
+        sta bt_posx,y
+        lda #$90
+        sta bt_posy,y
+	rts
+        
+        
+;;;; starting oam offset goes in X (and new one is returned in x)
+RenderBTs: subroutine
+	ldy #0
+.loop
+	lda bt_state,y
+        and #$f		; major state in bottom bits (flicker in top)
+        beq .next
+        ;; set r0 to sprite index = base + (state-1)*2
+        sec
+        sbc #1
+        asl
+        clc
+        adc #bt_tile_start
+        sta r0
+        
+        ;; topleft
+        lda bt_posy,y	; set sprite y
+        sta OAM_RAM,x
+        inx
+        lda r0
+        sta OAM_RAM,x
+        inx
+        lda bt_state,y
+        and #OAM_FLIPX
+        ora #2		; set sprite attrs
+        sta OAM_RAM,x
+        inx
+        lda bt_posx,y
+        sta OAM_RAM,x
+        inx
+        
+        ;; topright
+        lda bt_posy,y	; set sprite y
+        sta OAM_RAM,x
+        inx
+        inc r0	;; right column
+        lda r0
+        sta OAM_RAM,x
+        inx
+        lda bt_state,y
+        and #OAM_FLIPX
+        ora #2		; set sprite attrs
+        sta OAM_RAM,x
+        inx
+        lda bt_posx,y
+        clc
+        adc #8
+        sta OAM_RAM,x
+        inx
+        
+.next
+        iny
+        cpy #NUM_BT_DEFS
+        bne .loop
+	rts
+
+
+        
         
       
 ;   _ __ ___  _ ___  ___ 
@@ -583,6 +663,35 @@ UpdateOnGroundPickup: subroutine
 ;  | | | | | | \__ \ (__ 
 ;  |_| |_| |_|_|___/\___|
         
+base_mote = $30
+InitMotes: subroutine
+        ;; init motes
+        InitSprite base_mote +  0, $33, $10, $16
+        InitSprite base_mote +  1, $77, $26, $17
+        InitSprite base_mote +  2, $46, $14, $18
+        InitSprite base_mote +  3, $11, $61, $16
+        InitSprite base_mote +  4, $76, $a2, $17
+        InitSprite base_mote +  5, $a0, $13, $18
+        InitSprite base_mote +  6, $e3, $b2, $16
+        InitSprite base_mote +  7, $c1, $51, $17
+        InitSprite base_mote +  8, $e4, $73, $18
+        InitSprite base_mote +  9, $b3, $b5, $16
+        InitSprite base_mote + 10, $91, $d6, $17
+        InitSprite base_mote + 11, $48, $e9, $18
+        InitSprite base_mote + 12, $40, $93, $16
+        InitSprite base_mote + 13, $33, $b5, $17
+        InitSprite base_mote + 14, $83, $64, $18
+        InitSprite base_mote + 15, $d8, $e9, $16
+        ; flip some
+        lda #OAM_FLIPX
+        sta OAM_RAM+2+$30*4
+        sta OAM_RAM+2+$32*4
+        sta OAM_RAM+2+$33*4
+        sta OAM_RAM+2+$34*4
+        sta OAM_RAM+2+$38*4
+        sta OAM_RAM+2+$3a*4
+        sta OAM_RAM+2+$3e*4
+	rts
         
 UpdateMotes: subroutine
 ; update animation timer
@@ -593,18 +702,21 @@ UpdateMotes: subroutine
         lda #0
         sta timr
 .done_timr
-	bne .done
 
-	ldx #$20 * 4
+	ldx #base_mote * 4
         ldy #$10
 .loop:
-	dec OAM_RAM,x	; dec spr.y
         lda world_inc
         clc
         adc OAM_RAM+3,x
         sta OAM_RAM+3,x
+        
+        lda timr
+        bne .next
+	dec OAM_RAM,x	; dec spr.y
 
 	; move to next sprite
+.next
         inx
         inx
         inx
@@ -709,7 +821,7 @@ Palette:
         hex 25		; bg1 unused MIRROR
         hex 0d1727	;sprite 1 -- sam & pickups
         hex 25		; bg2 unused MIRROR
-        hex 252525	;sprite 2
+        hex 1d2d0f	;sprite 2 -- BTs
         hex 25		; bg3 unused MIRROR
         hex 252525	;sprite 3
         
@@ -717,7 +829,8 @@ Palette:
         align $100
 	include "rand.asm"
         
-        include "pickups.asm"
+        include "pickupdefs.asm"
+	include "btdefs.inc"
 
         
  	include "land.asm"
