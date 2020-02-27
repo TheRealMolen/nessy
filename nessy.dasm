@@ -297,13 +297,15 @@ UpdateSam: subroutine
 .right:
 	lda sam_vx
         cmp sam_maxspd
-        beq .maxspd
+        bcs .maxspd
         ; bonus turnaround
         inc sam_vx
         cmp #-1
         bpl .maxspd
         inc sam_vx
 .maxspd:
+	lda sam_maxspd
+        sta sam_vx
 	ClearSpriteFlipX sam_oam_attrs
 	jmp .updateanim
         
@@ -797,10 +799,10 @@ UpdateBTPos: subroutine
 	;; drift towards the player if nearby
         lda rx2+1
         bne .post_attract
+        lda bt_state,y
+        cmp #1
+        bne .post_attract
         
-        jsr Rand
-        cmp #80
-        bcs .post_x_attract
         lda sam_x
         cmp rx2
         bcs .attractr
@@ -811,7 +813,7 @@ UpdateBTPos: subroutine
 .post_x_attract
 
         jsr Rand
-        cmp #40
+        cmp #120
         bcs .post_y_attract
         lda sam_y
         sbc #18		; aim for his head!
@@ -1071,7 +1073,7 @@ RenderOoze: subroutine
         ENDM
 
 
-OOZE_Y = GROUND_Y + 5
+OOZE_Y = GROUND_Y + 8
 
 
 RenderLightOoze: subroutine
@@ -1165,17 +1167,11 @@ RenderHeavyOoze: subroutine
 RenderTerrifyingOoze: subroutine
 	lda sam_x	;x
         sec
-        sbc #28
+        sbc #24
         sta r0
 	lda #OOZE_Y	;y
         sta r1
         AddSprite r0, r1, #$f1, #OAM_FLIPX | 2
-        
-        lda r0		;update x
-        clc
-        adc #8
-        sta r0
-        AddSprite r0, r1, #$f0, #2
         
         lda r0		;update x
         clc
