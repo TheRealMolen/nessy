@@ -10,17 +10,11 @@ playing on an NES
 
 
 ### TODO
-- BTs hovering
-    - at authored positions
-    - bobbing
 - dropping pickups
-- BT chasing
-- BTs hidden when moving
 - delivery success
 - DEATH & restart
     - attribute swaps to black palette? [reuse penny palette]
     - floor hands?
 - hold breath to hide from BTs
 - audio feedback to warn about BTs
-- temporally dither BT visibility
 - like particles
