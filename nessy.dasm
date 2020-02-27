@@ -53,6 +53,9 @@ bt_posxh ds.b NUM_BT_DEFS	; high byte of posx
 bt_posy  ds.b NUM_BT_DEFS
 bt_attrs ds.b NUM_BT_DEFS	; sprite attrs
 
+bt_touching byte	; is a bt touching this frame?
+bt_contact byte		; what's the total amount of contact?
+
 pu_state ds.b num_pickups
 
 
@@ -257,6 +260,15 @@ UpdateSam: subroutine
         tax
         lda pu_maxspeed,x
         sta sam_maxspd
+        
+        ;; if a BT has us, we can only go at half speed
+	lda bt_contact
+        cmp #15
+        bcc .post_bt_check
+        lda sam_maxspd
+        DivBy2s
+        sta sam_maxspd
+.post_bt_check
 
 ;;; update facing
 	lda pad0
@@ -595,6 +607,9 @@ UpdateOnGroundPickup: subroutine
 
 
 UpdateBTs: subroutine
+	lda #0		; reset our 'touching now' flag
+        sta bt_touching
+        
 	jsr UpdateBTVisibilty
 
         ldy #0
@@ -624,6 +639,9 @@ UpdateBTs: subroutine
         bcc .still_active
         jsr DeactivateBT
 .still_active
+
+	;; are they in contact with sam? if so, it's kicking off!
+        jsr CheckForBTContact
         
 	jsr UpdateBTFlickering
        
@@ -631,6 +649,18 @@ UpdateBTs: subroutine
         iny
         cpy #NUM_BT_DEFS
         bne .loop
+        
+        ;; if we haven't been in touch with a BT for a while, downgrade our contact
+        lda bt_touching
+        bne .post_adjust_contact
+        lda timr
+        bne .post_adjust_contact
+        sec
+        lda bt_contact
+        sbc #1
+        bcc .post_adjust_contact	; don't drop below 0
+        sta bt_contact
+.post_adjust_contact
 	rts
         
         
@@ -638,8 +668,16 @@ UpdateBTs: subroutine
 max_bt_vis_track = 120
         
 UpdateBTVisibilty: subroutine
-	;; TODO: if being attacked, bt_vis=5; rts
+	;; if being attacked, bt_vis=5
+        lda bt_contact
+        beq .no_contact
+        lda #5
+        sta bt_visibility
+        lda #max_bt_vis_track
+        sta bt_vis_track
+        rts
         
+.no_contact
 	lda sam_vx
         beq .show_bts
         
@@ -753,12 +791,14 @@ UpdateBTPos: subroutine
         sbc #1
         ;; FIXME?: could underflow
         sta bt_posy,y
-        jmp .driftdone
 .driftdone
 
-	;; drift towards the player
+	;; drift towards the player if nearby
+        lda rx2+1
+        bne .post_attract
+        
         jsr Rand
-        cmp #70
+        cmp #80
         bcs .post_x_attract
         lda sam_x
         cmp rx2
@@ -770,7 +810,7 @@ UpdateBTPos: subroutine
 .post_x_attract
 
         jsr Rand
-        cmp #30
+        cmp #40
         bcs .post_y_attract
         lda sam_y
         sbc #18		; aim for his head!
@@ -785,6 +825,7 @@ UpdateBTPos: subroutine
         adc #0	; we know that carry is set
         sta bt_posy,y
 .post_y_attract
+.post_attract
 
         ; pack posx back into lo,hi
         lda rx2
@@ -793,6 +834,56 @@ UpdateBTPos: subroutine
         sta bt_posxh,y
         
 	rts
+        
+        
+        
+;; check to see if this BT has got its hands on Sam
+; assumes bt_posx is in rx2, and btN is in y
+CheckForBTContact: subroutine
+	; if ofscreen, sam's safe
+        lda rx2+1
+        bne .done
+        
+	; use 8 bit AABB
+        ;; if btx_max < samx_min...
+        lda rx2
+        adc #14		; we want btx_max
+        cmp sam_x
+        bcc .done
+        
+        ;; if samx_max < btx_min...
+        lda sam_x
+        adc #7		; we want samx_max
+        cmp rx2
+        bcc .done
+        
+        ;; if samy_max < bty_min...
+        lda bt_posy,y
+        sbc #7		; we want samy_max and bty_min, so -24-8 ish
+        cmp sam_y
+        bcs .done
+        
+        ;; if bty+8 < samy_max-24...
+        lda bt_posy,y
+        adc #32		; we want samy_min and bty_max, so +8
+        cmp sam_y
+        bcc .done
+        
+        ;; sad times for old sam....
+        lda #1		; remember we're being touched right now
+        sta bt_touching	;  (decreases max speed)
+        
+        clc
+        lda bt_contact
+        adc #1
+        bcc .save_contact
+        lda #$ff
+.save_contact
+        sta bt_contact
+        
+.done
+	rts
+        
         
         
 ;; update flickering of BTs that should be flickering
@@ -837,6 +928,10 @@ RenderBTs: subroutine
         
 	ldy #0
 .loop
+	; don't render them if they're offscreen
+        lda bt_posxh,y
+        bne .next
+        
         ; ... or if they've been deactivated
 	lda bt_state,y
         cmp #1

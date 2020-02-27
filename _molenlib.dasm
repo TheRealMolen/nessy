@@ -94,6 +94,16 @@ OAM_FLIPX = $40
         
         
         
+; Signed divide by 2
+	MAC DivBy2s
+        bpl .positive
+        ;; for negative values, we add (divisor-1) so we round to zero
+        clc
+        adc #1
+.positive
+        _ASR		; vx /= 2
+        ENDM
+        
 ; Signed divide by 4
 	MAC DivBy4s
         bpl .positive
