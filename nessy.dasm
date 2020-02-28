@@ -5,7 +5,7 @@
 
 
 GROUND_Y = $b6
-FINAL_SCREEN = $14
+FINAL_SCREEN = $11
 
 ; this doesn't work if it's only in the defs inc file :shrugemoji:
 NUM_BT_DEFS = 12
@@ -105,8 +105,6 @@ update_title:
 	lda scrollx
         adc scrollx+1
         beq common_update
-        lda timr
-        beq common_update
         inc title_fade
         bne common_update ; leave state 0 (title) after title_fade wraps
         lda #1
@@ -119,8 +117,6 @@ update_delivery:
         bcc common_update
         lda #2
         sta state
-        lda #1
-        sta prepare_results
         jmp common_update
 
 update_results:
@@ -201,15 +197,18 @@ no_render_title:
         sta flipbg
 .post_flipbg
 	
-        lda prepare_results
-        beq .post_prepare_results
+        lda state
+        cmp #2
+        bne .post_prepare_results
         
-        lda PPU_CTRL
-	and #~CTRL_NMI	; disable NMI
-        sta PPU_CTRL
-        dec prepare_results
 	lda #$2C
-        jsr PrepareResultsScreen
+        jsr UpdateResultsScreen
+        
+        ; don't scroll past it
+        lda #$f0
+        sta scrollx
+        lda #FINAL_SCREEN-1
+        sta scrollx+1
 .post_prepare_results
         
         
@@ -374,8 +373,8 @@ push_scroll_point = $88
 .not_at_left
 	; do we need to push scroll?
         pha
-        lda scrollx+1
-        cmp #FINAL_SCREEN
+        lda state
+        cmp #2
         beq .end_of_world
         pla
         

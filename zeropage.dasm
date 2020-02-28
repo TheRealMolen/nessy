@@ -33,6 +33,9 @@ title_skip byte
 title_fade byte
 
 
+result_line byte
+
+
 flingdebounce byte
 flingstatus   byte
 flingx 	byte
@@ -53,5 +56,7 @@ bt_touching byte	; is a bt touching this frame?
 bt_contact byte		; what's the total amount of contact?
 
 pu_state ds.b num_pickups
+
+;; this bit is haunted o_O
 
 

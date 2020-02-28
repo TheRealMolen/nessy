@@ -2,6 +2,7 @@
 
 ;; set ppu addr, using r0 to select the page
 	MAC PPU_SETADDR_r0
+        lda PPU_STATUS	; reset address latch
         lda r0
         sta PPU_ADDR
         lda {1}	; lower byte
@@ -178,30 +179,53 @@ PrintDeliveryRequest: subroutine
 
 delivery_msg:
 	.byte "PENNY L. ARABIATA",0,$22
-        .byte "Pls bring me medicine asap",$22,0
+        .byte "I need 80kg of wires, pls help",$22,0
         
         
-        
-; Acc should be $20 or $2C depending on the bg to write to
-PrepareResultsScreen: subroutine
-	sta r0
-        pha
-        
+DrawPenny: subroutine
 ;; copy penny's picture very manually
-        lda PPU_STATUS	; reset address latch
         PPU_SETADDR_r0 #$40
         lda #$ae
 	sta PPU_DATA
         lda #$af
 	sta PPU_DATA
-        lda PPU_STATUS	; reset address latch
         PPU_SETADDR_r0 #$60
         lda #$be
 	sta PPU_DATA
         lda #$bf
 	sta PPU_DATA
-	
-        lda PPU_STATUS	; reset address latch
+	rts
+        
+        
+        MAC JumpTbl
+        cmp #{1}
+        bne .notthisone
+        jsr {2}{1}
+        rts
+.notthisone
+        .ENDM
+        
+        MAC PrintLine	; page(0/1), offset, string
+        lda #{1}
+        clc
+        adc r0
+        sta r0
+.donepage
+        PPU_SETADDR_r0 #{2}
+	ldy #0
+.loop:
+	lda {3},y
+        beq .done
+	sta PPU_DATA
+        iny
+	bne .loop
+.done
+        ENDM
+        
+        
+result_draw0: subroutine
+	jsr DrawPenny
+        ;; draw her name
         PPU_SETADDR_r0 #$63
 	ldy #0
 .loop1:
@@ -211,71 +235,111 @@ PrepareResultsScreen: subroutine
         iny
 	bne .loop1
 .eol1
-
-	lda #$a0
-        sta r1
-        ldy #0
-.lineloop
-        lda PPU_STATUS	; reset address latch
-        PPU_SETADDR_r0 r1
-.loop2
-	lda delivered_msg,y
-        beq .eol2
-	sta PPU_DATA
-        iny
-	bne .loop2
-.eol2
-	cmp delivered_msg+1,y
-        beq .eom
-        iny
-        ; move cursor to next line
-	lda r1
-        clc
-        adc #$20
-        sta r1
-        lda r0
-        adc #0
-        sta r0
-        jmp .lineloop    
-.eom
-
-	;; and now finally our result!
-	pla
-        pha
-        sta r0
-        inc r0
-        lda #score_addr_lo
-        sta r1
-        lda PPU_STATUS	; reset address latch
-        PPU_SETADDR_r0 r1
+        inc result_line
+	rts
+        
+result_draw1: subroutine
+	PrintLine 0, $a0, delivered_msg_0
+        inc result_line
+	rts
+        
+result_draw2: subroutine
+	PrintLine 0, $c0, delivered_msg_1
+        inc result_line
+	rts
+        
+result_draw3: subroutine
+	PrintLine 0, $e0, delivered_msg_2
+        inc result_line
+	rts
+        
+result_draw4: subroutine
+	PrintLine 1, $00, delivered_msg_3
+        inc result_line
+	rts
+        
+result_draw5: subroutine
+	PrintLine 1, $20, delivered_msg_4
+        inc result_line
+	rts
+        
+result_draw6: subroutine
+	PrintLine 1, $60, result_msg_0
+        
+        ;; add our score
         jsr CountCarriedPickups
         clc
         adc #'0
         sta PPU_DATA
         
-        pla
+        lda #$20
+        sta PPU_DATA
+        
+        lda #'$
+        sta PPU_DATA
+        
+        inc result_line
+	rts
+        
+result_draw7: subroutine
+	PrintLine 1, $80, result_msg_1
+        inc result_line
+	rts
+        
+result_draw8: subroutine
+	PrintLine 1, $a0, result_msg_2
+        inc result_line
+	rts
+        
+result_draw9: subroutine
+	PrintLine 1, $e0, result_msg_3
+        inc result_line
+	rts
+        
+result_draw10: subroutine
+	PrintLine 2, $60, result_msg_4
+        inc result_line
+	rts
+        
+result_draw11: subroutine
+	lda r0
         jsr SetBgAttrsForMsg
-
 	rts
         
         
-score_addr_lo = ($a0 + $e0 + 18) - $100
+        
+; Acc should be $20 or $2C depending on the bg to write to
+UpdateResultsScreen: subroutine
+	sta r0
+        
+        lda result_line
+        JumpTbl 0, result_draw
+        JumpTbl 1, result_draw
+        JumpTbl 2, result_draw
+        JumpTbl 3, result_draw
+        JumpTbl 4, result_draw
+        JumpTbl 5, result_draw
+        JumpTbl 6, result_draw
+        JumpTbl 7, result_draw
+        JumpTbl 8, result_draw
+        JumpTbl 9, result_draw
+        JumpTbl 10, result_draw
+        JumpTbl 11, result_draw
+        rts
+        
+        
 
-delivered_msg:
-	.byte "I thought I wanted medicine,",0
-	.byte "but what I really needed was",0
-	.byte "      human connection",0
-	.byte "         $$$$$$$$$$",0
-        .byte " ",0
-        .byte " ",0
-        .byte " ",0
-        .byte "     # PACKAGES:    $",0
-        .byte "          SPEED:  2 $",0
-        .byte "         DAMAGE: 10 $",0
-        .byte " ",0
-        .byte " ",0
-        .byte "         RATING:  S $$$",0
-        .byte 0
+delivered_msg_0: 	.byte "Thanks for these wires! $$",0
+delivered_msg_1: 	.byte "Now I can connect my hifi.",0
+delivered_msg_2: 	.byte "Like you connecting people!",0
+delivered_msg_3: 	.byte "I guess that's an allegory $",0
+delivered_msg_4: 	.byte " $ $ $ $ $ $ $ $ $ $ $ $ $",0
+
+result_msg_0: 	.byte "     # PACKAGES:  ",0
+result_msg_1: 	.byte "          SPEED:  2 $",0
+result_msg_2: 	.byte "         DAMAGE: 10 $",0
+result_msg_3: 	.byte "         RATING:  S $$",0
+result_msg_4: 		.byte "      press START to retry",0
         
 
 ;; clear the delivery instructions
@@ -308,7 +372,6 @@ SetBgAttrsForMsg: subroutine
 	clc	; move to attr page
         adc #3
         sta r0
-        lda PPU_STATUS	; reset address latch
         PPU_SETADDR_r0 #$C0
         
         ; first tile is special cos it's penny
@@ -330,7 +393,6 @@ SetBgAttrsForPlay: subroutine
 	clc	; move to attr page
         adc #3
         sta r0
-        lda PPU_STATUS	; reset address latch
         PPU_SETADDR_r0 #$C0
         
         ldx #39
