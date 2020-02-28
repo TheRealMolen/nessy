@@ -27,6 +27,7 @@ sam_tmr	byte
 world_inc byte
 scrollx word
 flipbg  byte	; when this is true, we need to handle bg flipping next nmi
+prepare_results byte	; when this is true, we need to draw the results screen
 
 title_skip byte
 title_fade byte

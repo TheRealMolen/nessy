@@ -4,7 +4,7 @@
 	MAC PPU_SETADDR_r0
         lda r0
         sta PPU_ADDR
-        lda #{1}	; lower byte
+        lda {1}	; lower byte
         sta PPU_ADDR
         ENDM
 
@@ -171,6 +171,9 @@ PrintDeliveryRequest: subroutine
         iny
 	bne .loop2
 .eol2
+
+	lda r0
+        jsr SetBgAttrsForMsg
         rts
 
 delivery_msg:
@@ -178,11 +181,100 @@ delivery_msg:
         .byte "Pls bring me medicine asap",$22,0
         
         
+        
+; Acc should be $20 or $2C depending on the bg to write to
+PrepareResultsScreen: subroutine
+	sta r0
+        pha
+        
+;; copy penny's picture very manually
+        lda PPU_STATUS	; reset address latch
+        PPU_SETADDR_r0 #$40
+        lda #$ae
+	sta PPU_DATA
+        lda #$af
+	sta PPU_DATA
+        lda PPU_STATUS	; reset address latch
+        PPU_SETADDR_r0 #$60
+        lda #$be
+	sta PPU_DATA
+        lda #$bf
+	sta PPU_DATA
+	
+        lda PPU_STATUS	; reset address latch
+        PPU_SETADDR_r0 #$63
+	ldy #0
+.loop1:
+	lda delivery_msg,y
+        beq .eol1
+	sta PPU_DATA
+        iny
+	bne .loop1
+.eol1
+
+	lda #$a0
+        sta r1
+        ldy #0
+.lineloop
+        lda PPU_STATUS	; reset address latch
+        PPU_SETADDR_r0 r1
+.loop2
+	lda delivered_msg,y
+        beq .eol2
+	sta PPU_DATA
+        iny
+	bne .loop2
+.eol2
+	cmp delivered_msg+1,y
+        beq .eom
+        iny
+        ; move cursor to next line
+	lda r1
+        clc
+        adc #$20
+        sta r1
+        lda r0
+        adc #0
+        sta r0
+        jmp .lineloop    
+.eom
+
+	;; and now finally our result!
+	pla
+        pha
+        sta r0
+        inc r0
+        lda #score_addr_lo
+        sta r1
+        lda PPU_STATUS	; reset address latch
+        PPU_SETADDR_r0 r1
+        jsr CountCarriedPickups
+        clc
+        adc #'0
+        sta PPU_DATA
+        
+        pla
+        jsr SetBgAttrsForMsg
+
+	rts
+        
+        
+score_addr_lo = ($a0 + $e0 + 18) - $100
+
 delivered_msg:
 	.byte "I thought I wanted medicine,",0
 	.byte "but what I really needed was",0
 	.byte "      human connection",0
 	.byte "         $$$$$$$$$$",0
+        .byte " ",0
+        .byte " ",0
+        .byte " ",0
+        .byte "     # PACKAGES:    $",0
+        .byte "          SPEED:  2 $",0
+        .byte "         DAMAGE: 10 $",0
+        .byte " ",0
+        .byte " ",0
+        .byte "         RATING:  S $$$",0
         .byte 0
         
 
@@ -191,6 +283,7 @@ delivered_msg:
 ClearDeliveryRequest: subroutine
 	sta r0
 ;; clear top half of pic
+        lda PPU_STATUS	; reset address latch
         PPU_SETADDR_r0 #$40
         lda #0
 	sta PPU_DATA
@@ -202,6 +295,51 @@ ClearDeliveryRequest: subroutine
 	sta PPU_DATA
         dex
         bne .loop
+        
+        lda r0
+        jsr SetBgAttrsForPlay
+	rts
+        
+        
+        
+; set the bg attrs for message mode
+; Acc should be $20 or $2C depending on the bg to write to
+SetBgAttrsForMsg: subroutine
+	clc	; move to attr page
+        adc #3
+        sta r0
+        lda PPU_STATUS	; reset address latch
+        PPU_SETADDR_r0 #$C0
+        
+        ; first tile is special cos it's penny
+        lda #$ef
+        sta PPU_DATA
+        
+        ldx #40 - 1
+        lda #$ff
+.loop
+        sta PPU_DATA
+        dex
+        bne .loop
+        
+	rts
+        
+; set the bg attrs for message mode
+; Acc should be $20 or $2C depending on the bg to write to
+SetBgAttrsForPlay: subroutine
+	clc	; move to attr page
+        adc #3
+        sta r0
+        lda PPU_STATUS	; reset address latch
+        PPU_SETADDR_r0 #$C0
+        
+        ldx #39
+        lda #$55	; whole lotta palette 1
+.loop
+        sta PPU_DATA
+        dex
+        bne .loop
+        
 	rts
         
         

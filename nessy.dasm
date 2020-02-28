@@ -5,6 +5,7 @@
 
 
 GROUND_Y = $b6
+FINAL_SCREEN = $14
 
 ; this doesn't work if it's only in the defs inc file :shrugemoji:
 NUM_BT_DEFS = 12
@@ -49,6 +50,7 @@ Start:
         ; print the delivery request into bg2
         lda #$2C
         jsr PrintDeliveryRequest
+        ;jsr PrepareResultsScreen
         
                 
 ;;;; init sprites
@@ -92,6 +94,10 @@ Tick: subroutine
 
 	lda state
         beq update_title
+        cmp #1
+        beq update_delivery
+        cmp #2
+        beq update_results
         jmp common_update
 
 update_title:
@@ -100,12 +106,32 @@ update_title:
         adc scrollx+1
         beq common_update
         lda timr
-        bne common_update
+        beq common_update
         inc title_fade
         bne common_update ; leave state 0 (title) after title_fade wraps
-        inc state
+        lda #1
+        sta state
+        jmp common_update
+        
+update_delivery:
+	lda scrollx+1
+        cmp #FINAL_SCREEN	; have we reached penny?
+        bcc common_update
+        lda #2
+        sta state
+        lda #1
+        sta prepare_results
+        jmp common_update
 
-common_update:
+update_results:
+	;; TODO: timer debounce and then START to reset
+        lda pad0
+        and #PAD_START
+        beq .no_restart
+        jmp Start
+.no_restart:
+
+common_update
 	;; reset our world increment for this frame
 	lda #0
 	sta world_inc
@@ -174,6 +200,17 @@ no_render_title:
 	lda #0
         sta flipbg
 .post_flipbg
+	
+        lda prepare_results
+        beq .post_prepare_results
+        
+        lda PPU_CTRL
+	and #~CTRL_NMI	; disable NMI
+        sta PPU_CTRL
+        dec prepare_results
+	lda #$2C
+        jsr PrepareResultsScreen
+.post_prepare_results
         
         
 ; copy oam
@@ -214,31 +251,21 @@ no_render_title:
 
 UpdateSam: subroutine
 ;; update max speed
-        ldx #0
-        lda #0
-        ldy #0
-        clc
-.pu_loop
-	lda pu_state,x
-        cmp #1
-        bne .not_carried
-        iny
-.not_carried
-        inx
-        cpx #num_pickups
-        bne .pu_loop
-        tya
+	jsr CountCarriedPickups
         ; now lookup our max speed
         tax
         lda pu_maxspeed,x
         sta sam_maxspd
         
-        ;; if a BT has us, we can only go at half speed
+        ;; if a BT has us, they slow us down
 	lda bt_contact
         cmp #15
         bcc .post_bt_check
         lda sam_maxspd
-        DivBy2s
+        cmp #6
+        bcc .post_bt_check
+        sec
+        sbc #4
         sta sam_maxspd
 .post_bt_check
 
@@ -334,7 +361,6 @@ push_scroll_point = $88
         
         clc		; add on sam's x pos
         adc sam_x
-        ; [not in push scroll adc world_inc	; plus the world scroll pos
         cmp #screen_clamp_point
         bcs .not_at_left
         lda sam_vx
@@ -347,6 +373,12 @@ push_scroll_point = $88
         jmp .updated_x
 .not_at_left
 	; do we need to push scroll?
+        pha
+        lda scrollx+1
+        cmp #FINAL_SCREEN
+        beq .end_of_world
+        pla
+        
         cmp #push_scroll_point
         bcc .updated_x
         ; yep! figure out how much by...
@@ -356,6 +388,13 @@ push_scroll_point = $88
         sbc r0
         sta world_inc
         lda #push_scroll_point
+        jmp .updated_x
+        
+.end_of_world
+	pla
+        cmp #$f0
+        bcc .updated_x
+        lda #$f0
 .updated_x
         sta sam_x
 
@@ -436,6 +475,26 @@ RenderSam: subroutine
         _LSL16 rx2
         _LSL16 rx2
         ENDM
+        
+
+;; returns the number of pickups carried in A
+; trashes X & Y
+CountCarriedPickups: subroutine
+        ldx #0
+        lda #0
+        ldy #0
+        clc
+.pu_loop
+	lda pu_state,x
+        cmp #1
+        bne .not_carried
+        iny
+.not_carried
+        inx
+        cpx #num_pickups
+        bne .pu_loop
+        tya
+        rts
         
        
 ;;;; starting oam offset goes in X (and new one is returned in x)
@@ -642,7 +701,7 @@ UpdateBTs: subroutine
         
         
     
-max_bt_vis_track = 120
+max_bt_vis_track = 60
         
 UpdateBTVisibilty: subroutine
 	;; if being attacked, bt_vis=5
@@ -684,7 +743,8 @@ UpdateBTVisibilty: subroutine
         rts
         
 .nonzero
-	lsr
+	;lsr
+        ;lsr
         lsr
         lsr
         lsr
