@@ -34,6 +34,9 @@ title_fade byte
 
 
 result_line byte
+death_counter byte
+
+dbgwut byte
 
 
 flingdebounce byte

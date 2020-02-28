@@ -406,4 +406,126 @@ SetBgAttrsForPlay: subroutine
         
         
         
+UpdateDeathScreen: subroutine
+	sta r0
+        
+	lda death_counter
+        beq .init
+        cmp #1
+        beq .clear
+        cmp #2
+        beq .print
+        cmp #$d0
+        beq .printrestart
+        jsr UpdateOoze
+        rts
+        
+.init
+	jsr SetBgAttrsForMsg
+	jsr SetDeathPalette
+        
+        lda #1
+        sta dbgwut
+        
+	inc death_counter
+	rts
+.clear
+	jsr ClearDeliveryRequest
+	inc death_counter
+	rts
+        
+.print
+	PrintLine 1, $20, dead_msg
+	inc death_counter
+	rts
+        
+.printrestart
+	jsr DrawRetryMessage
+        jsr UpdateOoze
+        inc death_counter
+        rts
+        
+
+dead_msg: .byte  "         B E A C H E D .",0
+repat_msg:.byte "      press START to repatriate",0
+
+
+SetDeathPalette: subroutine
+        lda PPU_STATUS
+	PPU_SETADDR $3f00
+        ldy #0
+.loop:
+	lda DeathPalette,y	; lookup byte in ROM
+	sta PPU_DATA	; store byte to PPU data
+        iny		; Y = Y + 1
+        cpy #32		; is Y equal to 32?
+	bne .loop	; not yet, loop
+        rts		; return to caller
+
+DeathPalette:
+	hex 2d		;screen color
+	hex 09081d	;background 0 - foreground
+        hex 25		; bg1 unused
+        hex 1d181b	;background 1 - background
+        hex 25		; bg2 unused
+        hex 0f2d0f	;background 2 - penny
+        hex 25		; bg3 unused
+        hex 311d0f	;background 3 - text
+        hex 3d		;screen colour MIRROR
+        hex 001d0f	;sprite 0 -- motes
+        hex 25		; bg1 unused MIRROR
+        hex 0d1727	;sprite 1 -- sam & pickups
+        hex 25		; bg2 unused MIRROR
+        hex 1d2d0f	;sprite 2 -- BTs
+        hex 25		; bg3 unused MIRROR
+        hex 252525	;sprite 3
+
+
+DrawRetryMessage: subroutine
+	PrintLine 2, $20, repat_msg
+	rts
+
+UpdateOoze: subroutine
+	lda timr
+        beq .noinc
+        lda death_counter
+        cmp #$ff
+        beq .noinc
+        inc death_counter
+.noinc
+	; blat out the bottom attrs
+        ; point at attr table
+        lda #3
+        clc
+        adc r0
+        sta r0
+        
+	lda #$ff
+        sec
+        sbc death_counter
+        pha
+        lsr
+        lsr
+        clc
+        adc #$c0
+        sta r1
+        PPU_SETADDR_r0 r1
+        
+        pla
+        and #2
+        beq .odd
+        lda #$a0
+        jmp .writeattr
+.odd
+        lda #$aa
+.writeattr
+        
+        sta PPU_DATA
+
+	rts
+
+        
+
+
+
 

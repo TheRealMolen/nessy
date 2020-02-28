@@ -41,6 +41,7 @@ Start:
 	NES_INIT	; set up stack pointer, turn off PPU
         jsr WaitSync	; wait for VSYNC
         jsr ClearRAM	; clear RAM
+        jsr ClearScreen	; Clear the BG
         jsr WaitSync	; wait for VSYNC (and PPU warmup)
 ; set palette and nametable VRAM
 	jsr SetPalette	; set palette colors
@@ -67,8 +68,11 @@ Start:
         sta PPU_MASK 	; enable rendering
         lda #CTRL_NMI
         sta PPU_CTRL	; enable NMI
-        
 
+
+
+STATE_RESULTS = 2
+STATE_DEAD = 8
 
 
 ;   ___  ___      _          _                       
@@ -96,7 +100,9 @@ Tick: subroutine
         beq update_title
         cmp #1
         beq update_delivery
-        cmp #2
+        cmp #STATE_RESULTS
+        beq update_results
+        cmp #STATE_DEAD
         beq update_results
         jmp common_update
 
@@ -128,6 +134,15 @@ update_results:
 .no_restart:
 
 common_update
+	;; is sam dead?
+        lda bt_contact
+        cmp #$ff
+        bne .notdeadyet
+        ;; oh dear
+        lda #8
+        sta state
+        
+.notdeadyet
 	;; reset our world increment for this frame
 	lda #0
 	sta world_inc
@@ -198,9 +213,13 @@ no_render_title:
 .post_flipbg
 	
         lda state
-        cmp #2
-        bne .post_prepare_results
+        cmp #STATE_RESULTS
+        beq .prepare_results
+        cmp #STATE_DEAD
+        beq .update_dead
+        jmp .do_render
         
+.prepare_results
 	lda #$2C
         jsr UpdateResultsScreen
         
@@ -209,7 +228,18 @@ no_render_title:
         sta scrollx
         lda #FINAL_SCREEN-1
         sta scrollx+1
-.post_prepare_results
+        jmp .do_render
+        
+.update_dead
+	lda #0
+        sta scrollx
+	lda scrollx+1
+        and #~1
+        sta scrollx+1
+        lda #$20
+	jsr UpdateDeathScreen
+
+.do_render
         
         
 ; copy oam
@@ -1382,6 +1412,29 @@ RenderTerrifyingOoze: subroutine
 ;  | '_ ` _ \| / __|/ __|
 ;  | | | | | | \__ \ (__ 
 ;  |_| |_| |_|_|___/\___|
+        
+        
+ClearScreen: subroutine
+	ldy #$20
+
+.oloop
+	lda PPU_STATUS
+	tya
+        sta PPU_ADDR
+        lda #0
+        sta PPU_ADDR
+     	
+        ldx #0
+        lda #0
+.loop
+	sta PPU_DATA
+	inx
+        bne .loop
+        
+        iny
+        cpy #$2D
+        bne .oloop
+	rts
         
 base_mote = $30
 InitMotes: subroutine

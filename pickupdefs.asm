@@ -6,14 +6,14 @@ pickup_carry_tile = $a0
 
 ;; pickup positions, div32
 pu_pos_32:
-	.hex 06
-	.hex 09
 	.hex 11
 	.hex 1b
 	.hex 24
 	.hex 42
 	.hex 49
+	.hex 56
 	.hex 69
+        .hex 71
         
 ;; sam's max speed when carrying N pickups
 ; NB this is  *0.25
